@@ -7,6 +7,7 @@ import argparse
 from getTimestamps import getTS
 from skimage import io, img_as_ubyte
 from skimage.transform import rescale
+import shutil
 
 # set up parser
 parser = argparse.ArgumentParser(description="Get timestamps for an image dataset given as input")
@@ -59,7 +60,7 @@ if args.low_resolution :
     for image in list_images:
         io.imsave(new_dataset_directory+image, img_as_ubyte(rescale(io.imread(dataset_directory+image), 0.25, anti_aliasing=False)))
     dataset_directory = new_dataset_directory
-    dataset_name = new_dataset_name
+    # dataset_name = new_dataset_name
     
 # get data
 image_folder = os.path.join(os.path.dirname(__file__), dataset_directory)
@@ -81,9 +82,8 @@ event_simulator = esim_py.EventSimulator(contrast_threshold_positive, contrast_t
 events = event_simulator.generateFromFolder(image_folder, timestamps_file)
 
 # save events
-if args.high_resolution:
-    reso = "_HR.npy"
-elif args.low_resolution:
+reso = "_HR.npy"
+if args.low_resolution:
     reso = "_LR.npy"
 if args.output == None:
     output_file = "events_"+dataset_name[:-1]+reso
@@ -121,3 +121,5 @@ if args.figure:
 
 # clean up
 os.remove(timestamps_file)
+if args.low_resolution :
+    shutil.rmtree(new_dataset_directory)
