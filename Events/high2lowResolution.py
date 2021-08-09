@@ -45,10 +45,13 @@ def viz_events(events, resolution):
 
 # get low resolution
 if args.dataset[0][-1] == "/":
+    dataset_name = args.dataset[0].split("/")[-2]+"/"
     dataset_directory = args.dataset[0] 
 else : 
+    dataset_name = args.dataset[0].split("/")[-1]+"/"
     dataset_directory = args.dataset[0]+"/"
 if args.low_resolution :
+    new_dataset_name = dataset_name[:-1]+"_lowResolution/" 
     new_dataset_directory = dataset_directory[:-1]+"_lowResolution/"
     if not os.path.exists(new_dataset_directory):
         os.makedirs(new_dataset_directory)
@@ -56,10 +59,11 @@ if args.low_resolution :
     for image in list_images:
         io.imsave(new_dataset_directory+image, img_as_ubyte(rescale(io.imread(dataset_directory+image), 0.25, anti_aliasing=False)))
     dataset_directory = new_dataset_directory
+    dataset_name = new_dataset_name
     
 # get data
 image_folder = os.path.join(os.path.dirname(__file__), dataset_directory)
-timestamps_file = "timestamps_"+dataset_directory[:-1]+"_tmp.txt"
+timestamps_file = "timestamps_"+dataset_name[:-1]+"_tmp.txt"
 getTS(dataset_directory, timestamps_file)
 timestamps_file = os.path.join(os.path.dirname(__file__), timestamps_file)
 
@@ -82,11 +86,11 @@ if args.high_resolution:
 elif args.low_resolution:
     reso = "_LR.npy"
 if args.output == None:
-    output_file = "events_"+dataset_directory[:-1]+reso
+    output_file = "events_"+dataset_name[:-1]+reso
 else :
     output_file = args.output[0]
 np.save(output_file, events)
-print("Events produced from "+dataset_directory+" saved as "+output_file)
+print("Events produced from "+dataset_name+" saved as "+output_file)
 
 
 ### DISPLAY EVENTS 
