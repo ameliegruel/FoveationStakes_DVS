@@ -13,6 +13,7 @@ import shutil
 parser = argparse.ArgumentParser(description="Get timestamps for an image dataset given as input")
 parser.add_argument("dataset", metavar="D", type=str, nargs="+", help="Input dataset")
 parser.add_argument("--contrast_threshold", "-ct", help="Define the contrast threshold used to compute the events", nargs=1, metavar="CT", type=int, default=[0.25])
+parser.add_argument("--frame_interval", "-fi", help="Define the time interval between frames", nargs=1, metavar="F", type=int, default=[50])
 parser.add_argument("--high_resolution", "-HR", help="Get the events with a high resolution (True by default)", action="store_true", default=True)
 parser.add_argument("--low_resolution", "-LR", help="Get the events with a low resolution (False by default)", action='store_true', default=False)
 parser.add_argument("--output", "-o", help="Name of output file, where events will be saved", nargs=1, metavar="O", type=str, default=None)
@@ -60,12 +61,11 @@ if args.low_resolution :
     for image in list_images:
         io.imsave(new_dataset_directory+image, img_as_ubyte(rescale(io.imread(dataset_directory+image), 0.25, anti_aliasing=False)))
     dataset_directory = new_dataset_directory
-    # dataset_name = new_dataset_name
     
 # get data
 image_folder = os.path.join(os.path.dirname(__file__), dataset_directory)
 timestamps_file = "timestamps_"+dataset_name[:-1]+"_tmp.txt"
-getTS(dataset_directory, timestamps_file)
+getTS(dataset_directory, timestamps_file, frame_interval=args.frame_interval[0])
 timestamps_file = os.path.join(os.path.dirname(__file__), timestamps_file)
 
 
