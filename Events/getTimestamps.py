@@ -4,7 +4,7 @@ from shlex import split
 def getTS(
     dataset_repertory, 
     output_file="timestamps.txt",
-    frame_interval = 2.89 #ms 
+    frame_interval = 97.5 #ms 
     ): 
     
     # get number of files in input dataset
@@ -17,7 +17,7 @@ def getTS(
     ts_file = open(output_file, "w")
     ts = 0
     while ts < nb_files-2:
-        ts_file.write(str(ts*frame_interval)[::-1].zfill(9)[::-1]+"\n")
+        ts_file.write(str(float(ts*frame_interval))[::-1].zfill(9)[::-1]+"\n")
         ts += 1
-    ts_file.write(str(ts*frame_interval)[::-1].zfill(9)[::-1])
+    ts_file.write(str(float(ts*frame_interval))[::-1].zfill(9)[::-1])
     ts_file.close() 
