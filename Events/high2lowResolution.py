@@ -16,6 +16,7 @@ parser.add_argument("--contrast_threshold", "-ct", help="Define the contrast thr
 parser.add_argument("--frame_interval", "-fi", help="Define the time interval between frames", nargs=1, metavar="F", type=int, default=[50])
 parser.add_argument("--high_resolution", "-HR", help="Get the events with a high resolution (True by default)", action="store_true", default=True)
 parser.add_argument("--low_resolution", "-LR", help="Get the events with a low resolution (False by default)", action='store_true', default=False)
+parser.add_argument("--reduction_coeff", "-rc", help="Define the reduction coefficient for the reduction into low resolution", nargs=1, default=[0.25], type=float, metavar="RC")
 parser.add_argument("--output", "-o", help="Name of output file, where events will be saved", nargs=1, metavar="O", type=str, default=None)
 parser.add_argument("--figure", "-f", help="Visualize the events", action='store_true', default=False)
 args = parser.parse_args()
@@ -59,7 +60,7 @@ if args.low_resolution :
         os.makedirs(new_dataset_directory)
     list_images = os.listdir(dataset_directory)
     for image in list_images:
-        io.imsave(new_dataset_directory+image, img_as_ubyte(rescale(io.imread(dataset_directory+image), 0.25, anti_aliasing=False)))
+        io.imsave(new_dataset_directory+image, img_as_ubyte(rescale(io.imread(dataset_directory+image), args.reduction_coeff[0], anti_aliasing=False)))
     dataset_directory = new_dataset_directory
     
 # get data
