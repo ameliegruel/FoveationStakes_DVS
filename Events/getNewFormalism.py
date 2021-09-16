@@ -34,7 +34,9 @@ def get_newFormalism_by_timewindow(image_size=args.image_size):
     ]
 
 def get_events_timestamps(events, x, y, p):
-    return [e[2] for e in events if e[0]==x and e[1]==y and e[3]==p]
+    events=np.array(events)
+    # return [e[2] for e in events if e[0]==x and e[1]==y and e[3]==p]
+    return events[(events.T[0] == x) & (events.T[1] == y) & (events.T[3] == p)].T[2]
 
 def get_2DHistogram(timestamps):
     return len(timestamps)
