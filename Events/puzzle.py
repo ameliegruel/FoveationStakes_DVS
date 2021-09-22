@@ -18,7 +18,7 @@ def LR2HR(LRimage, reduction_coeff):
     return LRimage
 
 def getMinMax(coord, insert_size, fig_size):
-    c_min = max(coord - insert_size, 0)
+    c_min = max(coord - insert_size/2, 0)
     c_max = min(c_min + insert_size, fig_size)
     return c_min, c_max
 
