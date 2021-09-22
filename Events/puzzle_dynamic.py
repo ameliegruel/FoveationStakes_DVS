@@ -1,5 +1,5 @@
 import numpy as np
-from numpy.lib.function_base import select
+import threading
 
 class Puzzle():
 
@@ -29,28 +29,37 @@ class Puzzle():
         self.y_size_frame_HR = max(self.insert_image.T[1])
 
         # ROI coordonates
-        self.x_coord = -1
-        self.y_coord = -1
+        self.x_ROI = -1
+        self.y_ROI = -1
 
         self.x_min_LR = self.x_max_LR = self.x_min_HR = self.x_max_HR = -1
         self.y_min_LR = self.y_max_LR = self.y_min_HR = self.y_max_HR = -1
 
         # time window
-        self.min_tw = 0
-        self.max_tw = time_window
-        self.run = self.max_tw < np.max(self.insert_image.T[2])  # True as long as all the events haven't been processed
+        self.setTimeWindow(0, time_window)
 
         # final puzzle image
         self.final_puzzle_image = None
-    
+
+        self.count = 0 # tmp, to debug
+
 
     def setROIcoord(
         self,
-        xROI,
-        yROI
+        type,   # type of coordinate : "x" or "y"
+        coord   # value of coordinate
     ): 
-        self.x_coord = xROI
-        self.y_coord = yROI
+        if type == "x":
+            self.x_ROI = coord
+        if type == "y":
+            self.y_ROI = coord
+
+    
+    def setTimeWindow(self, min_tw, max_tw):
+        self.min_tw = min_tw
+        self.max_tw = max_tw
+        self.run = self.max_tw < np.max(self.insert_image.T[2]) # True as long as all the events haven't been processed
+        self.last_ROI = [self.x_ROI, self.y_ROI] # since this method is run only on initialisation and when a timewindow is over, it's a good place to set the last ROI
         
 
     def getCoordLR(
@@ -71,41 +80,38 @@ class Puzzle():
         return LRimage
 
     def getMinMax(self, coord, insert_size, fig_size):
-        c_min = max(coord - insert_size, 0)
+        c_min = max(coord - insert_size/2, 0)
         c_max = min(c_min + insert_size, fig_size)
         return c_min, c_max
 
     def setFinalImage(self, puzzle_for_current_time_window):
-        if self.final_puzzle_image == None : 
-            self.final_puzzle_image = puzzle_for_current_time_window
-        else :
+        try : 
             self.final_puzzle_image = np.concatenate((self.final_puzzle_image, puzzle_for_current_time_window))
+        except ValueError :
+            self.final_puzzle_image = puzzle_for_current_time_window
 
-    def getPuzzle(
-        self, 
-        x_coord,      # in LR
-        y_coord       # in LR
-        ):
+    def getPuzzle(self):
+        # debug
+        # self.count += 1
+        # print("Puzzle "+str(self.count)+" - tw : "+str(self.max_tw))
 
-        # handle case with no region of interest
-        if x_coord == -1 or y_coord == -1:
+        # handle option with no region of interest
+        if self.x_ROI == -1 or self.y_ROI == -1:
             self.setFinalImage(self.frame_image)
 
-        if x_coord != self.x_coord :
-            self.x_coord = x_coord
+        if self.x_ROI != self.last_ROI[0] :
             # min and max coordinates of insert part in HR
-            self.x_min_HR, self.x_max_HR = self.getMinMax(self.getCoordHR(x_coord), self.insert_size_HR, self.x_size_frame_HR)
-            print("en x :", self.x_min_HR, self.x_max_HR)
+            self.x_min_HR, self.x_max_HR = self.getMinMax(self.getCoordHR(self.x_ROI), self.insert_size_HR, self.x_size_frame_HR)
+            print("> en x :", self.x_min_HR, self.x_max_HR)
             # min and max coordinates of insert part in LR
-            self.x_min_LR, self.x_max_LR = self.getMinMax(x_coord, self.insert_size_LR, self.x_size_frame_LR)
+            self.x_min_LR, self.x_max_LR = self.getMinMax(self.x_ROI, self.insert_size_LR, self.x_size_frame_LR)
         
-        if y_coord != self.y_coord :
-            self.y_coord = y_coord
+        if self.y_ROI != self.last_ROI[1] :
             # min and max coordinates of insert part in HR
-            self.y_min_HR, self.y_max_HR = self.getMinMax(self.getCoordHR(y_coord), self.insert_size_HR, self.y_size_frame_HR)
-            print("en y :", self.y_min_HR, self.y_max_HR)
+            self.y_min_HR, self.y_max_HR = self.getMinMax(self.getCoordHR(self.y_ROI), self.insert_size_HR, self.y_size_frame_HR)
+            print("> en y :", self.y_min_HR, self.y_max_HR)
             # min and max coordinates of insert part in LR
-            self.y_min_LR, self.y_max_LR = self.getMinMax(y_coord, self.insert_size_LR, self.y_size_frame_LR)
+            self.y_min_LR, self.y_max_LR = self.getMinMax(self.y_ROI, self.insert_size_LR, self.y_size_frame_LR)
         
         # get insert part from insert image (HR)
         insert = self.insert_image[
@@ -133,7 +139,11 @@ class Puzzle():
         # puzzle frame image and LR image
         final_image_for_current_timewindow = np.concatenate((frame_image, insert))
         self.setFinalImage(final_image_for_current_timewindow)
-        
+
+        # update timewindow and continue (or not)
+        self.setTimeWindow(self.max_tw, self.max_tw + self.max_tw-self.min_tw)
+        if self.run :
+            self.getPuzzle()
 
 
 
@@ -163,8 +173,21 @@ events_puzzle = Puzzle(
 
 x_ROI = int(input("x frame size: "+str(events_puzzle.x_size_frame_LR)+" ==> ROI x coordinate : "))
 y_ROI = int(input("y frame size: "+str(events_puzzle.y_size_frame_LR)+" ==> ROI y coordinate : "))
-events_puzzle.getPuzzle(
-    x_coord=x_ROI,
-    y_coord=y_ROI
-)
+events_puzzle.setROIcoord("x", x_ROI)
+events_puzzle.setROIcoord("y", y_ROI)
+#events_puzzle.getPuzzle()
+
+# threading 
+thread_puzzle = threading.Thread(target=events_puzzle.getPuzzle)
+thread_puzzle.daemon = True
+thread_puzzle.start()
+
+while events_puzzle.run:
+    if input() == "x":
+        events_puzzle.setROIcoord("x", int(input("> new value for ROI's x: ")))
+    if input() == "y":
+        events_puzzle.setROIcoord("y", int(input("> new value for ROI's y: ")))
+        
+
 np.save("events_puzzle.npy", events_puzzle.final_puzzle_image)
+print("Max tw :",events_puzzle.max_tw)
