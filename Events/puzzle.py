@@ -38,6 +38,9 @@ def getPuzzle(
     # min and max coordinates of insert part in HR
     x_min_HR, x_max_HR = getMinMax(getCoordHR(x_coord, reduction_coeff), getCoordHR(insert_size, reduction_coeff), getCoordHR(x_size_frame, reduction_coeff))
     y_min_HR, y_max_HR = getMinMax(getCoordHR(y_coord, reduction_coeff), getCoordHR(insert_size, reduction_coeff), getCoordHR(y_size_frame, reduction_coeff))
+    print("Region of interest's coordonnates:")
+    print("> en x :", x_min_HR, x_max_HR)
+    print("> en y :", y_min_HR, y_max_HR)
     
     # min and max coordinates of insert part in LR
     x_min_LR, x_max_LR = getMinMax(x_coord, insert_size, x_size_frame)
