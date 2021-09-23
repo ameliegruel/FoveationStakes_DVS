@@ -1,6 +1,7 @@
 import numpy as np
 import threading
-import sys
+
+### PUZZLE OBJECT ###
 
 class Puzzle():
 
@@ -46,15 +47,27 @@ class Puzzle():
         self.count = 0 # tmp, to debug
 
 
+    def testROIcoord(
+        self,
+        type,   # type of coordinate : "x" or "y"
+        v_coord   # value of coordinate
+    ):
+        if type == "x":
+            return v_coord <= self.x_size_frame_LR and v_coord >= -1
+        if type == "y":
+            return v_coord <= self.y_size_frame_LR and v_coord >= -1
+
     def setROIcoord(
         self,
         type,   # type of coordinate : "x" or "y"
-        coord   # value of coordinate
+        v_coord   # value of coordinate
     ): 
-        if type == "x":
-            self.x_ROI = coord
-        if type == "y":
-            self.y_ROI = coord
+        if type == "x" and self.testROIcoord("x",v_coord):
+            self.x_ROI = v_coord
+        elif type == "y" and self.testROIcoord("y",v_coord):
+            self.y_ROI = v_coord
+        elif type in ["x","y"] :
+            print("Incorrect value: the ROI exceeds the frame's boundaries. Please try again\n")
 
     
     def setTimeWindow(self, min_tw, max_tw):
@@ -150,6 +163,26 @@ class Puzzle():
 
 
 
+
+### ERROR HANDLING ###
+
+def testNumericalInput(user_input):
+    while True:
+        try : 
+            user_input = int(user_input)
+            break
+        except ValueError :
+            user_input = input("Incorrect Value - Please enter a numerical value: ")
+    return int(user_input)
+
+def testROI(key, user_input):
+    while not events_puzzle.testROIcoord(key, user_input):
+        user_input = testNumericalInput(input("Incorrect value: the ROI exceeds the frame's boundaries. Please try again: "))
+    print()
+    return user_input
+    
+
+
 ### MAIN ###
 import argparse
 
@@ -172,9 +205,16 @@ events_puzzle = Puzzle(
     time_window=args.time_window[0]
 )
 
-x_ROI = int(input("x frame size: "+str(events_puzzle.x_size_frame_LR)+" ==> ROI x coordinate : "))
-y_ROI = int(input("y frame size: "+str(events_puzzle.y_size_frame_LR)+" ==> ROI y coordinate : "))
+
+# set ROI's coordonates
+x_ROI = testROI(
+    "x", 
+    testNumericalInput(input("x frame size: "+str(events_puzzle.x_size_frame_LR)+" ==> ROI x coordinate : ")))
 events_puzzle.setROIcoord("x", x_ROI)
+
+y_ROI = testROI(
+    "y",
+    testNumericalInput(input("y frame size: "+str(events_puzzle.y_size_frame_LR)+" ==> ROI y coordinate : ")))
 events_puzzle.setROIcoord("y", y_ROI)
 
 # threading 
@@ -186,13 +226,7 @@ print("\n### START PUZZLE ###")
 while events_puzzle.run:
     coord = input()
     if coord == "x" or coord == "y":
-        value = input("-> new value for ROI's "+coord+": ")
-        while True:
-            try : 
-                value = int(value)
-                break
-            except ValueError :
-                value = input("Incorrect value -> new numerical value for ROI's "+coord+": ")
+        value = testNumericalInput(input("-> new value for ROI's "+coord+": "))
         events_puzzle.setROIcoord(coord, value)
         
 
