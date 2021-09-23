@@ -104,7 +104,7 @@ class Puzzle():
             self.last_ROI[0] = self.x_ROI
             # min and max coordinates of insert part in HR
             self.x_min_HR, self.x_max_HR = self.getMinMax(self.getCoordHR(self.x_ROI), self.insert_size_HR, self.x_size_frame_HR)
-            print("> en x :", self.x_min_HR, self.x_max_HR)
+            print(">>> ROI's limits in x :", self.x_min_HR, self.x_max_HR)
             # min and max coordinates of insert part in LR
             self.x_min_LR, self.x_max_LR = self.getMinMax(self.x_ROI, self.insert_size_LR, self.x_size_frame_LR)
         
@@ -112,7 +112,7 @@ class Puzzle():
             self.last_ROI[1] = self.y_ROI
             # min and max coordinates of insert part in HR
             self.y_min_HR, self.y_max_HR = self.getMinMax(self.getCoordHR(self.y_ROI), self.insert_size_HR, self.y_size_frame_HR)
-            print("> en y :", self.y_min_HR, self.y_max_HR)
+            print(">>> ROI's limits in y :", self.y_min_HR, self.y_max_HR)
             # min and max coordinates of insert part in LR
             self.y_min_LR, self.y_max_LR = self.getMinMax(self.y_ROI, self.insert_size_LR, self.y_size_frame_LR)
         
@@ -181,13 +181,19 @@ events_puzzle.setROIcoord("y", y_ROI)
 thread_puzzle = threading.Thread(target=events_puzzle.getPuzzle)
 thread_puzzle.daemon = True
 thread_puzzle.start()
+print("\n### START PUZZLE ###")
 
 while events_puzzle.run:
     coord = input()
-    if coord == "x":
-        events_puzzle.setROIcoord("x", int(input("> new value for ROI's x: ")))
-    if coord == "y":
-        events_puzzle.setROIcoord("y", int(input("> new value for ROI's y: ")))
+    if coord == "x" or coord == "y":
+        value = input("-> new value for ROI's "+coord+": ")
+        while True:
+            try : 
+                value = int(value)
+                break
+            except ValueError :
+                value = input("Incorrect value -> new numerical value for ROI's "+coord+": ")
+        events_puzzle.setROIcoord(coord, value)
         
 
 np.save("events_puzzle.npy", events_puzzle.final_puzzle_image)
