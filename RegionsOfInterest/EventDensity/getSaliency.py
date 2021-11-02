@@ -7,20 +7,26 @@ Run as : $ python3 getSaliency.py nest
 Use of DDD17 (DVS Driving Dataset 2017) annotated by [Alonso, 2017]
 """
 
+from pyNN.nest import connectors
 from pyNN.utility import get_simulator, init_logging, normalized_filename
 from pyNN.utility.plotting import Figure, Panel
+from pyNN.space import Grid2D
+from quantities.units.radiation import R
+from events2spikes import ev2spikes
 import matplotlib.pyplot as plt
 import numpy as np 
 from numpy.random import randint
 import sys
 import neo
 from quantities import ms
+from tqdm import tqdm
 
 
 ### Configure simulator
 sim, options = get_simulator(("--plot-figure", "Plot the simulation results to a file", {"action": "store_true"}),
                              ("--events","Get input file with inputs"),
-                             ("--debug", "Print debugging information"))
+                             ("--downscale", "Downscale the connection between events and reaction", {"action":"store_true"}),
+                             ("--debug", "Print debugging information", {"action": "store_true"}))
 
 if options.debug:
     init_logging(None, debug=True)
@@ -33,55 +39,138 @@ elif sim == "spinnaker":
 dt = 1/80000
 sim.setup(timestep=0.01)
 
+downscale_factor_1D = 10
+downscale_factor_2D = downscale_factor_1D*downscale_factor_1D
 
 # ### Get Data
-# try : 
-#     ev = np.load(options.events)
-# except (ValueError, FileNotFoundError, TypeError):
-#     print("Error: The input file has to be of format .npy")
-#     sys.exit()
-# x_input, y_input = ev.shape[:-1]
-# print(x_input,y_input)
-time_data = 500
-ev = [sorted(list(randint(0, time_data/2, randint(0,2*time_data/3)))),
-      [4,200,400],
-      sorted(list(randint(time_data/2, time_data, randint(0,time_data/3)))),
-      [150,200,450,470]]
+try : 
+    ev = np.load(options.events)
+    ev[:,2] *= 1000
+except (ValueError, FileNotFoundError, TypeError):
+    print("Error: The input file has to be of format .npy")
+    sys.exit()
+time_data = int(np.max(ev[:2000,2]))
+print(time_data)
+ev, x_input, y_input = ev2spikes(ev[:5000], coord_t=2)
+print(x_input, y_input)
+
+
+# ev = [sorted(list(randint(0, time_data/2, randint(0,2*time_data/3)))),
+#       [4,200,400],
+#       sorted(list(randint(time_data/2, time_data, randint(0,time_data/3)))),
+#       [150,200,450,470]]
 
 ### Network
 
 # populations
-Events = sim.Population(
-    # x_input*y_input,
-    4,
-    sim.SpikeSourceArray(spike_times=ev),
-    label="Events"
-)
-Events.record("spikes")
+print("Initiating populations...")
 
-Reaction_parameters = {
-    'tau_m': 20.0,      # membrane time constant (in ms)
+Input = sim.Population(
+    x_input*y_input,
+    sim.SpikeSourceArray(spike_times=ev),
+    label="Input",
+    structure=Grid2D(dx=1, dy=1, z=-50, aspect_ratio=x_input/y_input)
+)
+Input.record("spikes")
+
+Events_parameters = {
+    'tau_m': 25,      # membrane time constant (in ms)
     'tau_refrac': 0.1,  # duration of refractory period (in ms)
     'v_reset': -65.0,   # reset potential after a spike (in mV) 
-    'v_rest': -200.0,    # resting membrane potential (in mV) !
-    'v_thresh': -5,    # spike threshold (in mV) 
+    'v_rest': -65.0,    # resting membrane potential (in mV) !
+    'v_thresh': -25,    # spike threshold (in mV) 
 }
-Reaction = sim.Population(
-    # x_input*y_input,
-    4,
-    sim.IF_cond_exp(**Reaction_parameters)
+Events = sim.Population(
+    x_input*y_input,
+    sim.IF_cond_exp(**Events_parameters),
+    label="Events",
+    structure=Grid2D(dx=1, dy=1, z=0, aspect_ratio=x_input/y_input)
 )
+Events.record(("spikes","v"))
+
+Reaction_parameters = {
+    'tau_m': 25,      # membrane time constant (in ms)
+    'tau_refrac': 0.1,  # duration of refractory period (in ms)
+    'v_reset': -65.0,   # reset potential after a spike (in mV) 
+    'v_rest': -65.0,    # resting membrane potential (in mV) !
+    'v_thresh': -25,    # spike threshold (in mV) 
+}
+
+if options.downscale:
+    Reaction = sim.Population(
+        int(x_input/downscale_factor_1D) * int(y_input/downscale_factor_1D),
+        sim.IF_cond_exp(**Reaction_parameters),
+        label="Reaction",
+        structure=Grid2D(dx=downscale_factor_1D, dy=downscale_factor_1D, z=50, aspect_ratio=x_input/y_input)
+    )
+
+    subRegions = []
+    for v in range(Reaction.size):
+        subRegions.append(
+            sim.PopulationView(Events, np.array(range(downscale_factor_2D*v, downscale_factor_2D*(v+1))))
+        )
+
+else : 
+    Reaction = sim.Population(
+        x_input*y_input,
+        sim.IF_cond_exp(**Reaction_parameters),
+        label="Reaction",
+        structure=Grid2D(dx=1, dy=1, z=50, aspect_ratio=x_input/y_input)
+    )
 Reaction.record(("spikes","v"))
-print(Reaction.get("v_rest"))
+
+print("Size of populations :",Events.size, Reaction.size)
 
 # connections
-events2reaction = sim.Projection(
-    Events, Reaction,
+print("Initiating connections...")
+
+input2events = sim.Projection(
+    Input, Events,
     connector=sim.OneToOneConnector(),
-    synapse_type=sim.StaticSynapse(weight=np.random.uniform(0.5, 1, (Events.size, Reaction.size))),
+    synapse_type=sim.StaticSynapse(weight=1),
     receptor_type="excitatory",
-    label="Connection input events to reaction layer"
+    label="Connection input to events"
 )
+
+if options.downscale :
+    for n in tqdm(range(Reaction.size)):
+        events2reaction = sim.Projection(
+            subRegions[n], sim.PopulationView(Reaction, [n]),
+            connector=sim.OneToOneConnector(),
+            synapse_type=sim.StaticSynapse(weight=1),
+            receptor_type="excitatory",
+            label="Connection events to reaction layer"
+        )
+
+else :
+    events2reaction = sim.Projection(
+        Events, Reaction,
+        connector=sim.OneToOneConnector(),
+        synapse_type=sim.StaticSynapse(weight=1),
+        receptor_type="excitatory",
+        label="Connection events to reaction layer"
+    )
+
+feedback = sim.Projection(
+    Reaction, Events,
+    connector=sim.DistanceDependentProbabilityConnector("exp(-d+50)"),
+    synapse_type=sim.StaticSynapse(weight=1),
+    receptor_type="excitatory",
+    label="Feedback connection reaction to input"
+)
+
+
+"""
+WTA = sim.Projection(
+    Events, Events,
+    connector=sim.AllToAllConnector(allow_self_connections=True),
+    synapse_type=sim.StaticSynapse(weight=0.5),
+    receptor_type="inhibitory",
+    label="Winner-Takes-All"
+)
+"""
+
+print("Network initilisation OK")
 
 ### Run simulation
 """
@@ -121,23 +210,7 @@ weight_recorder = WeightRecorder(sampling_interval=1.0, projection=events2reacti
 **************************************************************************************************
 """
 
-class IntrinsicPlasticity(object):
-    def __init__(self, sampling_interval):
-        self.interval = sampling_interval,
-        self.projection = events2reaction,
-        self.source = Events,
-        self.target = Reaction,
-        self.rest = self.target.get("v_rest")
-
-    def __call__(self,t):
-        # si pas d'events dans une timewindow partout 
-        self.rest = np.where(t_post_target > t - 1, np.max(self.th*self.delta_th_post, self.th_min), self.th)
-        increase = np.zeros(self.target.size)
-        increase = np.sum(np.where(np.logical_and(np.greater_equal(self.tau_ip_plus, delta_t), np.greater(delta_t, self.tau_ip_minus)), np.min(increase+self.delta_th_pair*self.w[synapse], self.th_max), increase), axis=0)
-        self.th = self.th + increase
-        # second si :events à 2 neurones en même temps sur même pas de temps
-        
-
+print("Start simulation")
 
 sim.run(time_data, callbacks=[weight_recorder])
 print("Simulation done")
@@ -157,13 +230,13 @@ if options.plot_figure:
         # raster plot of the Reaction neurons spike times
         Panel(Reaction_data.spiketrains, ylabel="Reaction spikes", yticks=True, markersize=0.2, xlim=(0, time_data)),
         # membrane potential of the Reaction neurons
-        Panel(Reaction_data.filter(name='v')[0], ylabel="Membrane potential (mV) event2reaction", yticks=True, xlim=(0, time_data), linewidth=0.2),
+        Panel(Reaction_data.filter(name='v')[0], ylabel="Membrane potential (mV) event2reaction", yticks=True, xlim=(0, time_data), linewidth=0.2, legend=False, xlabel="Time (ms)", xticks=True),
         
         # evolution of the synaptic weights with time
         # Panel(weights, xticks=True, yticks=True, xlabel="Time (ms)", ylabel="Weights event2reaction",
         #         legend=False, xlim=(0, time_data)),
         title="Saliency detection",
-        annotations="Simulated with %s" % options.simulator.upper()
+        annotations="Simulated with "+ options.simulator.upper() + "\nInput events from "+options.events
     ).save(figure_filename)
 
 sim.end()
