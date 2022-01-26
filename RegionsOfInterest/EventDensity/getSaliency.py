@@ -7,6 +7,7 @@ Run as : $ python3 getSaliency.py nest
 Use of DDD17 (DVS Driving Dataset 2017) annotated by [Alonso, 2017]
 """
 
+from pickle import APPEND
 from pyNN.utility import get_simulator, init_logging, normalized_filename
 from pyNN.utility.plotting import Figure, Panel
 from pyNN.space import Grid2D
@@ -15,11 +16,11 @@ from events2spikes import ev2spikes
 from reduceEvents import event_count, reduce
 import matplotlib.pyplot as plt
 import numpy as np
-from numpy.random import randint
 import sys
 from quantities import ms
 from tqdm import tqdm
 import neo
+from math import ceil
 
 ################################################### FUNCTIONS #################################################################
 
@@ -52,20 +53,14 @@ def GaussianConnectionWeight(x,y, w_max=50.0):
 # Configure simulator
 sim, options = get_simulator(("--plot-figure", "Plot the simulation results to a file", {"action": "store_true"}),
                              ("--events","Get input file with inputs"),
-                             ("--inter-layer", "Use intermediate layer between input and reaction", {"action": "store_true"}),
                              ("--reduce", "Spatailly reduce input data", {"action": "store_true"}),
                              ("--unit", "Temporally adapt input data", {"default": "milli"}),
-                             ("--gaussian_feedback", "Implement Gaussian feedback between Input and intermediate events layer", {"action": "store_true"}),
                              ("--classif", "Simulation with the classifications layers", {"action": "store_true"}),
-                             ("--save-all", "Save the data output by all layers as pkl files", {"action":"store_true"}),
-                             ("--save-ROI", "Save the data output by ROI selection layer as pkl ", {"action":"store_true"}),
+                             ("--save", "Save the data output by all layers as npy files", {"action":"store_true"}),
                              ("--debug", "Print debugging information", {"action": "store_true"}))
 
 if options.debug:
     init_logging(None, debug=True)
-
-if options.gaussian_feedback:
-    options.inter_layer = True
 
 if options.classif :
     nb_classifiers = 2
@@ -105,7 +100,7 @@ except (ValueError, FileNotFoundError, TypeError):
     sys.exit()
 
 if options.reduce :
-    ev = event_count(ev, coord_t=coord_ts, div=events_downscale_factor_1D)
+    ev = reduce(ev, coord_t=coord_ts, div=events_downscale_factor_1D, temporal=False)
     events_downscale_factor_1D = 1
 
 max_time = int(np.max(ev[:,coord_ts]))
@@ -124,10 +119,10 @@ except ValueError:
     print("Error: The start and stop time you defined for the simulation are not coherent with the data.")
     sys.exit(0)
 
-x_event = int(x_input/events_downscale_factor_1D)
-y_event = int(y_input/events_downscale_factor_1D)
-x_reaction = int(x_event/reaction_downscale_factor_1D)
-y_reaction = int(y_event/reaction_downscale_factor_1D)
+x_event = ceil(x_input/events_downscale_factor_1D)
+y_event = ceil(y_input/events_downscale_factor_1D)
+x_reaction = ceil(x_event/reaction_downscale_factor_1D)
+y_reaction = ceil(y_event/reaction_downscale_factor_1D)
 
 ################################################ NETWORK ################################################
 
@@ -141,18 +136,13 @@ Input = sim.Population(
     label="Input")
 Input.record("spikes")
 
-ROI_parameters = {
+parameters = {
     'tau_m': 25,      # membrane time constant (in ms)
     'tau_refrac': 0.1,  # duration of refractory period (in ms)
     'v_reset': -65.0,   # reset potential after a spike (in mV)
     'v_rest': -65.0,    # resting membrane potential (in mV) !
-    'v_thresh': -40,    # spike threshold (in mV)
+    'v_thresh': -20,    # spike threshold (in mV)
 }
-ROI = sim.Population(
-    x_input*y_input,
-    sim.IF_cond_exp(**ROI_parameters),
-    label="Region of interest")
-ROI.record(("spikes","v"))
 
 inhib_parameters = {
     'tau_m': 15,
@@ -165,14 +155,16 @@ inhib_parameters = {
 if options.classif :
     classifiers = []
     inhibitors_classifier = []
+    subRegionsClassifiers = []
 
     for layer in range(nb_classifiers):
         classifiers.append( sim.Population(
             x_input*y_input,
-            sim.IF_cond_exp(**ROI_parameters),
+            sim.IF_cond_exp(**parameters),
             label="Classifier "+str(layer+1))
         )
         classifiers[-1].record(("spikes","v"))
+        subRegionsClassifiers.append([])
 
     for neuron in range(nb_classifiers-1):
         inhibitors_classifier.append( sim.Population(
@@ -187,19 +179,10 @@ if options.classif :
 Reaction_parameters = {
     'tau_m': 2.5,      # membrane time constant (in ms)
     'tau_refrac': 0.1,  # duration of refractory period (in ms)
-    'v_reset': -65.0,   # reset potential after a spike (in mV)
+    'v_reset': -100.0,   # reset potential after a spike (in mV)
     'v_rest': -65.0,    # resting membrane potential (in mV) !
     'v_thresh': -25,    # spike threshold (in mV)
 }
-
-if options.inter_layer :
-    Events_parameters = {
-        'tau_m': 25,      # membrane time constant (in ms)
-        'tau_refrac': 0.1,  # duration of refractory period (in ms)
-        'v_reset': -65.0,   # reset potential after a spike (in mV)
-        'v_rest': -65.0,    # resting membrane potential (in mV) !
-        'v_thresh': -15,    # spike threshold (in mV)
-    }
 
 Reaction = sim.Population(
     x_reaction * y_reaction,
@@ -210,43 +193,17 @@ Reaction = sim.Population(
 
 subRegionsInput = []
 
-if options.inter_layer :
-    Events = sim.Population(
-        x_event*y_event,
-        sim.IF_cond_exp(**Events_parameters),
-        label="Events",
-        structure=Grid2D(dx=1, dy=1, z=0, aspect_ratio=x_event/y_event)
-    )
-
-    for X in range(x_event):
-        for Y in range(y_event):
-            subRegionsInput.append(
-                sim.PopulationView(Input, np.array(
-                    [np.ravel_multi_index( (x,y) , (x_input , y_input) )  for x in range(events_downscale_factor_1D*X, events_downscale_factor_1D*(X+1)) for y in range(events_downscale_factor_1D*Y, events_downscale_factor_1D*(Y+1)) ]
-                ))
-            )
-    subRegionsEvents = []
-
-subRegionsROI = []
-if options.classif:
-    subRegionsClassifiers = [[]]*nb_classifiers
+i = 0
 for X in range(x_reaction):
     for Y in range(y_reaction):
 
-        if options.inter_layer :
-            region_coordonates = np.array( [np.ravel_multi_index( (x,y) , (x_event, y_event) )  for x in range(reaction_downscale_factor_1D*X, reaction_downscale_factor_1D*(X+1)) for y in range(reaction_downscale_factor_1D*Y, reaction_downscale_factor_1D*(Y+1)) ] )
-            subRegionsEvents.append(
-                sim.PopulationView(Events, region_coordonates)
-            )
-
-        else :
-            region_coordonates = np.array([np.ravel_multi_index( (x,y) , (x_input,y_input) ) for x in range(events_downscale_factor_1D*reaction_downscale_factor_1D*X, events_downscale_factor_1D*reaction_downscale_factor_1D*(X+1)) for y in range(events_downscale_factor_1D*reaction_downscale_factor_1D*Y, events_downscale_factor_1D*reaction_downscale_factor_1D*(Y+1))])
-            subRegionsInput.append(
-                sim.PopulationView(Input, region_coordonates)
-            )
-
-        subRegionsROI.append(
-            sim.PopulationView(ROI, region_coordonates)
+        region_coordonates = np.array([
+            np.ravel_multi_index( (x,y) , (x_input,y_input) ) 
+            for x in range(events_downscale_factor_1D*reaction_downscale_factor_1D*X, events_downscale_factor_1D*reaction_downscale_factor_1D*(X+1)) if x < x_input
+            for y in range(events_downscale_factor_1D*reaction_downscale_factor_1D*Y, events_downscale_factor_1D*reaction_downscale_factor_1D*(Y+1)) if y < y_input
+        ])
+        subRegionsInput.append(
+            sim.PopulationView(Input, region_coordonates)
         )
 
         if options.classif :
@@ -254,59 +211,19 @@ for X in range(x_reaction):
                 subRegionsClassifiers[n].append(
                     sim.PopulationView(classifiers[n], region_coordonates)
                 )
-
+            i+=1
 
 Reaction.record(("spikes","v"))
-if options.inter_layer :
-    Events.record(("spikes","v"))
-
-if options.inter_layer :
-    print("\nSize of populations :\n> Input", Input.size, "with shape",(x_input, y_input), "\n> Events", Events.size, "with shape", (x_event,y_event),"\n> Reaction", Reaction.size, "with shape", (x_reaction, y_reaction), "\n> ROI",ROI.size, "with shape", (x_input, y_input),end="\n\n")
-else :
-    print("\nSize of populations :\n> Input", Input.size, "with shape",(x_input, y_input), "\n> Reaction", Reaction.size, "with shape", (x_reaction, y_reaction), "\n> ROI",ROI.size, "with shape", (x_input, y_input),end="\n\n")
+print("\nSize of populations :\n> Input", Input.size, "with shape",(x_input, y_input), "\n> Reaction", Reaction.size, "with shape", (x_reaction, y_reaction), end="\n\n")
 
 
 ######################## CONNECTIONS ########################
 print("Initiating connections...")
 
-# connection between input and ROI visualisation
-input2ROI = sim.Projection(
-    Input, ROI,
-    connector=sim.OneToOneConnector(),
-    synapse_type=sim.StaticSynapse(weight=0.8),
-    receptor_type="excitatory",
-    label="Connection input to ROI"
-)
-
-# connection between input and intermediate events layer
-if options.inter_layer :
-    input2events = []
-    for n in tqdm(range(Events.size)):
-        input2events.append( sim.Projection(
-            subRegionsInput[n], sim.PopulationView(Events, [n]),
-            connector=sim.AllToAllConnector(),
-            synapse_type=sim.StaticSynapse(weight=1),
-            receptor_type="excitatory",
-            label="Connection input region to events neuron "+str(n)
-        ))
-    events2reaction = []
-
 input2reaction = []
-reaction2ROI = []
 
-w_Reaction2ROI=GaussianConnectionWeight(x_reaction, y_reaction, w_max=0.1)
 for n in tqdm(range(Reaction.size)):
     reaction_neuron = sim.PopulationView(Reaction, [n])
-
-    # connection between intermediate events layer and ROI detection
-    if options.inter_layer :
-        events2reaction.append( sim.Projection(
-            subRegionsEvents[n], reaction_neuron,
-            connector=sim.AllToAllConnector(),
-            synapse_type=sim.StaticSynapse(weight=0.4),
-            receptor_type="excitatory",
-            label="Connection events region to reaction neuron "+str(n)
-        ))
 
     # connection between input and ROI detection
     input2reaction.append( sim.Projection(
@@ -316,93 +233,7 @@ for n in tqdm(range(Reaction.size)):
         receptor_type="excitatory",
         label="Connection events region to reaction neuron "+str(n)
     ))
-    # connection between ROI detection and ROI selection
-    # reaction2ROI.append( sim.Projection(
-    #     reaction_neuron, subRegionsROI[n],
-    #     connector=sim.AllToAllConnector(),
-    #     synapse_type=sim.StaticSynapse(weight=0.1),
-    #     receptor_type="excitatory",
-    #     label="One to one excitatory connection reaction neuron "+str(n)+" to corresponding region in ROI layer"
-    # ))
-    for e in filter(lambda x: x != n, range(Reaction.size)):
-        reaction2ROI.append( sim.Projection(
-            reaction_neuron, subRegionsROI[e],
-            connector=sim.AllToAllConnector(),
-            synapse_type=sim.StaticSynapse(weight=w_Reaction2ROI[n,e]),  #0.05),
-            receptor_type="inhibitory",
-            label="Inhibitory connection reaction neuron "+str(n)+" to corresponding region in ROI layer"
-        ))
 
-
-    ### feedback
-    if options.gaussian_feedback:
-
-        feedback = {
-            "big excitation": [],
-            "small excitation": [],
-            "inhibition" : []
-        }
-        f_neurons=[n]
-
-        feedback['big excitation'].append(
-            sim.Projection(
-                reaction_neuron, subRegionsEvents[n],
-                connector=sim.AllToAllConnector(),
-                synapse_type=sim.StaticSynapse(weight=0.1),
-                receptor_type="excitatory",
-                label="Feedback connection reaction to input - strongly excitatory"
-            )
-        )
-
-        X,Y = np.unravel_index(n, (x_reaction, y_reaction))
-        for x in range(X-1, X+2):
-            for y in range(Y-1, Y+2):
-                if x!=X or y!=Y:
-
-                    try :
-                        n_small_excitation = np.ravel_multi_index((x,y),(x_reaction,y_reaction))
-                        f_neurons.append(n_small_excitation)
-                        feedback['small excitation'].append(
-                            sim.Projection(
-                                reaction_neuron, subRegionsEvents[n_small_excitation],
-                                connector=sim.AllToAllConnector(),
-                                synapse_type=sim.StaticSynapse(weight=0.05),
-                                receptor_type="excitatory",
-                                label="Feedback connection reaction to input - lightly excitatory"
-                            )
-                        )
-                    except ValueError:
-                        pass
-
-        for e in filter(lambda x: x not in f_neurons, range(Reaction.size)):
-            feedback["inhibition"].append(
-                sim.Projection(
-                    reaction_neuron, subRegionsEvents[e],
-                    connector=sim.AllToAllConnector(),
-                    synapse_type=sim.StaticSynapse(weight=0.01),
-                    receptor_type="inhibitory",
-                    label="Feedback connection reaction to input - strongly inhibitory"
-                )
-            )
-
-"""
-else :
-    input2events = sim.Projection(
-        Input, Events,
-        connector=sim.OneToOneConnector(),
-        synapse_type=sim.StaticSynapse(weight=1),
-        receptor_type="excitatory",
-        label="Connection input to events"
-    )
-
-    events2reaction = sim.Projection(
-        Events, Reaction,
-        connector=sim.OneToOneConnector(),
-        synapse_type=sim.StaticSynapse(weight=1),
-        receptor_type="excitatory",
-        label="Connection events to reaction layer"
-    )
-"""
 
 # lateral inhibition on ROI detection
 WTA = sim.Projection(
@@ -428,9 +259,9 @@ if options.classif:
 
         # connection between ROI visualisation and classifier
         roi2classifiers.append( sim.Projection(
-            ROI, layer,
+            Input, layer,
             connector=sim.OneToOneConnector(),
-            synapse_type=sim.StaticSynapse(weight=0.7),
+            synapse_type=sim.StaticSynapse(weight=1),
             receptor_type="excitatory",
             label="Connection from ROI visualisation layer to classifier "+str(n+1)
         ))
@@ -449,9 +280,9 @@ if options.classif:
 
             # connection between ROI visualisation and inhibitor neuron
             roi2inhibitors.append( sim.Projection(
-                ROI, inhib_neuron,
+                Input, inhib_neuron,
                 connector=sim.AllToAllConnector(),
-                synapse_type=sim.StaticSynapse(weight=0.7),
+                synapse_type=sim.StaticSynapse(weight=1),
                 receptor_type="excitatory",
                 label="Connection from ROI visualisation layer to inhibitor neuron "+str(n)
             ))
@@ -460,7 +291,7 @@ if options.classif:
             classifiers2inhibitors.append (sim.Projection(
                 classifiers[n-1], inhib_neuron,
                 connector=sim.AllToAllConnector(),
-                synapse_type=sim.StaticSynapse(weight=0.7),
+                synapse_type=sim.StaticSynapse(weight=1),
                 receptor_type="inhibitory",
                 label="Inhibitory connection from classifier "+str(n)+" to inhibitor "+str(n)
             ))
@@ -478,7 +309,7 @@ if options.classif:
                 lateral_inhibition_classifiers.append( sim.Projection(
                     classifiers[i], layer,
                     connector=sim.OneToOneConnector(),
-                    synapse_type=sim.StaticSynapse(weight=10),
+                    synapse_type=sim.StaticSynapse(weight=50),
                     receptor_type="inhibitory",
                     label="Inhibitory connection from classifier "+str(i+1)+" to classifier "+str(n+1)
                 ))
@@ -510,9 +341,10 @@ class dynamicWeightAdaptation(object):
         self.projection = projection
         self.source = projection[0].pre
         self.target = projection[0].post
-        self.increase = 0.01
         self.default_w = 0.7
         self._weights = []
+        self.increase = 0.01  
+
     
     def __call__(self, t):
         firing_t = spikesReaction._spikes
@@ -542,8 +374,9 @@ class dynamicWeightAdaptation(object):
                 w = self.projection[n].get('weight', format='array', with_address=False)
                 if firing_t[n] > t-1 and firing_t[n] != 0:
                     w = w + self.increase
-                elif firing_t[n] < t-100: 
-                    w=max(w - self.increase , self.default_w)
+                elif firing_t[n] < t-100:
+                    w=w - self.increase
+                    w=np.where(w > self.default_w, w, self.default_w)
                 self.projection[n].set(weight=w)
                 global_w.append(np.unique(w))
             self._weights.append(global_w)
@@ -558,26 +391,95 @@ class dynamicWeightAdaptation(object):
 
 
 class dynamicThresholdAdaptation(object):
-    def __init__(self, sampling_interval, activated_pop, modified_pop):
+    def __init__(self, sampling_interval, activated_pop, modified_pop, activation):
         self.interval = sampling_interval
-        self.increase = 0.1
-        self.default_th = -40
-        self._thresholds = []
-        self.AP = activated_pop
-        self.MP = modified_pop    # list of sub regions in modified population (list of PopulationView)
+        if type(modified_pop) == list:
+            # self.default_th = modified_pop[0].get("v_thresh")
+            self.default_th = -1
+            self.reset_th = modified_pop[0].get("v_reset")+1
+        else :
+            self.default_th = -1
+            # self.default_th = modified_pop.get("v_thresh")
+            self.reset_th = modified_pop.get("v_reset")+1
         
+        for pop, end in [(activated_pop, " - "), (modified_pop, "\n")]:
+            if type(pop) == list:
+                print("list", pop[0].label, end=end)
+            else :
+                print("not list", pop.label, end=end)
+        
+        self._thresholds = []
+        self.MP = modified_pop    # list of sub regions in modified population (list of PopulationView)
+        self.AP = activated_pop
+        if activated_pop.label == "Reaction":
+            self.APspikes = spikesReaction
+        elif activated_pop.label == "Classifier 1":
+            self.APspikes = spikesClassif1
+
+        # if activation = "excitation", threshold are lower // if activation = "inhibition", threshold are increased
+        assert activation in ["excitation", "inhibition"]
+        if activation == "excitation":  
+            self.increase = 10
+        elif activation == "inhibition":
+            self.increase = -100
+    
+    def update_threshold(self, pop, firing_t, t, th):
+        if type(th) != np.ndarray:
+            th = np.ones((pop.size)) * th
+        # print(">>>",th, type(th))
+        if type(self.MP) == list:
+            firing_t = [firing_t]*pop.size
+        # global_th = []
+        firing_t = np.array(firing_t)
+        global_th = np.where(
+            firing_t > t - 1,
+            th - self.increase,
+
+            np.where(
+                firing_t < t-100,
+                th + self.increase,
+                th
+            )
+        )
+        global_th = np.where(
+            global_th > self.default_th,
+            self.default_th,
+            np.where(
+                global_th < self.reset_th,
+                self.reset_th,
+                global_th
+            )
+        )
+
+        # for neuron in range(pop.size):
+        #     if firing_t[neuron] > t-1:
+        #         th[neuron] = th[neuron] - self.increase
+        #     elif firing_t[neuron] < t-100:
+        #         th[neuron] = th[neuron] + self.increase
+        #     th[neuron] = max( self.reset_th, min(self.default_th, th[neuron]) )
+        #     global_th.append( th[neuron] ) 
+        # print(global_th)
+        
+        return global_th
+
     def __call__(self,t):
-        firing_t = spikesReaction._spikes
+        firing_t = self.APspikes._spikes
+        # if type(self.MP) != list:
+            # print(firing_t[firing_t != 0])
         i=0
-        for subr in self.MP:
-            th = subr.get('v_thresh', gather=True)
-            if firing_t[i] > t-1:
-                th = th - self.increase
-            else:
-                th = th + self.increase
-            subr.set(v_thresh=th)
-            self._thresholds.append(th)
-            i+=1
+        global_th = []
+        if type(self.MP) == list:
+            for subr in self.MP:
+                th = subr.get('v_thresh', gather=True)
+                Th = self.update_threshold(subr, firing_t[i], t, th) 
+                global_th += list(Th)
+                subr.set(v_thresh=Th)
+                i+=1
+        else : 
+            th = self.MP.get('v_thresh', gather=False)
+            global_th = self.update_threshold(self.MP, firing_t, t, th) 
+            self.MP.set(v_thresh=global_th)
+        self._thresholds.append(global_th)
         return t + self.interval
 
     def get_thresholds(self):
@@ -600,8 +502,12 @@ spikesReaction = LastSpikeRecorder(sampling_interval=1.0, pop=Reaction)
 weightRuleInput2reaction = dynamicWeightAdaptation(sampling_interval=1.0, projection=input2reaction)
 callbacks = [visualise_time, spikesReaction, weightRuleInput2reaction]
 if options.classif:
-    callbacks.append( dynamicThresholdAdaptation(sampling_interval=1.0, activated_pop=Reaction, modified_pop=subRegionsClassifiers[0]) )
-
+    spikesClassif1 = LastSpikeRecorder(sampling_interval=1.0, pop=classifiers[0])
+    callbacks.append( spikesClassif1 )
+    for layer in range(len(subRegionsClassifiers)):
+        callbacks.append( dynamicThresholdAdaptation(sampling_interval=1.0, activated_pop=Reaction, modified_pop=subRegionsClassifiers[layer], activation="excitation") )
+    callbacks.append( dynamicThresholdAdaptation(sampling_interval=1.0, activated_pop=classifiers[0], modified_pop=subRegionsClassifiers[1], activation="inhibition") )
+    
 print("\nStart simulation ...")
 sim.run(time_data, callbacks=callbacks)
 print("Simulation done\n")
@@ -611,27 +517,23 @@ print("Simulation done\n")
 
 Input_data = Input.get_data().segments[0]
 Reaction_data = Reaction.get_data().segments[0]
-ROI_data = ROI.get_data().segments[0]
 weights = weightRuleInput2reaction.get_weights()
 if options.classif :
     classifiers_data = [c.get_data().segments[0] for c in classifiers]
-    thresholds = callbacks[-1].get_thresholds()
+    thresholds1 = callbacks[-2].get_thresholds()
+    thresholds2 = callbacks[-1].get_thresholds()
 
 figure_filename = normalized_filename("Results", "Saliency detection", "png", options.simulator)
 
-if options.plot_figure and not options.inter_layer and not options.classif:
+if options.plot_figure and not options.classif:
     Figure(
         # raster plot of the event inputs spike times
         Panel(Input_data.spiketrains, xlabel="Input spikes", yticks=True, markersize=0.2, xlim=(0, time_data), ylim=(0, Input.size)),
         # raster plot of the Reaction neurons spike times
         Panel(Reaction_data.spiketrains, xlabel="ROI detector spikes", yticks=True, markersize=0.2, xlim=(0, time_data), ylim=(0, Reaction.size)),
-        # raster plot of the Reaction neurons spike times
-        Panel(ROI_data.spiketrains, xlabel="ROI visualisation spikes", yticks=True, markersize=0.2, xlim=(0, time_data), ylim=(0, ROI.size)),
 
         # # membrane potential of the Reaction neurons
         Panel(Reaction_data.filter(name='v')[0], ylabel="Membrane potential (mV)\nROI detector layer", yticks=True, xlim=(0, time_data), linewidth=0.2, legend=False),
-        # # membrane potential of the Reaction neurons
-        Panel(ROI_data.filter(name='v')[0], ylabel="Membrane potential (mV)\nROI visualisation layer", yticks=True, xlim=(0, time_data), linewidth=0.2, legend=False),
         # evolution of the synaptic weights with time
         Panel(weights, xticks=True, yticks=True, xlabel="Time (ms)", ylabel="Intermediate Output Weight",
                 legend=False, xlim=(0, time_data)),
@@ -642,14 +544,12 @@ if options.plot_figure and not options.inter_layer and not options.classif:
     # print("Figure correctly saved as", figure_filename)
     plt.show()
 
-elif options.plot_figure and not options.inter_layer and options.classif:
+elif options.plot_figure and options.classif:
     Figure(
         # raster plot of the event inputs spike times
         Panel(Input_data.spiketrains, xlabel="Input spikes", yticks=True, markersize=0.2, xlim=(0, time_data), ylim=(0, Input.size)),
         # raster plot of the Reaction neurons spike times
         Panel(Reaction_data.spiketrains, xlabel="ROI detector spikes", yticks=True, markersize=0.2, xlim=(0, time_data), ylim=(0, Reaction.size)),
-        # raster plot of the Reaction neurons spike times
-        Panel(ROI_data.spiketrains, xlabel="ROI visualisation spikes", yticks=True, markersize=0.2, xlim=(0, time_data), ylim=(0, ROI.size)),
         # membrane potential of the Classifier 1
         Panel(classifiers_data[0].spiketrains, xlabel="Classification layer 1 spikes", yticks=True, markersize=0.2, xlim=(0, time_data), ylim=(0, classifiers[0].size)),
         # membrane potential of the Classifier 2
@@ -657,13 +557,14 @@ elif options.plot_figure and not options.inter_layer and options.classif:
 
         # membrane potential of the Reaction neurons
         Panel(Reaction_data.filter(name='v')[0], ylabel="Membrane potential (mV)\nROI detector layer", yticks=True, xlim=(0, time_data), linewidth=0.2, legend=False),
-        # membrane potential of the Reaction neurons
-        Panel(ROI_data.filter(name='v')[0], ylabel="Membrane potential (mV)\nROI visualisation layer", yticks=True, xlim=(0, time_data), linewidth=0.2, legend=False, xlabel="Time (ms)", xticks=True),
         # evolution of the synaptic weights with time
         Panel(weights, yticks=True, ylabel="Reaction2ROI Weight",
                 legend=False, xlim=(0, time_data)),
         # evolution of the thresholds with time
-        Panel(thresholds, xticks=True, yticks=True, xlabel="Time (ms)", ylabel="Classifier 1 threshold",
+        Panel(thresholds1, xticks=True, yticks=True, xlabel="Time (ms)", ylabel="Classifier 1 threshold",
+                legend=False, xlim=(0, time_data)),
+        # evolution of the thresholds with time
+        Panel(thresholds2, xticks=True, yticks=True, xlabel="Time (ms)", ylabel="Classifier 2 threshold",
                 legend=False, xlim=(0, time_data)),
         
         title="Saliency detection",
@@ -671,31 +572,6 @@ elif options.plot_figure and not options.inter_layer and options.classif:
     ) #.save(figure_filename)
     # print("Figure correctly saved as", figure_filename)
     plt.show()
-
-elif options.plot_figure and options.inter_layer :
-    Events_data = Events.get_data().segments[0]
-    Figure(
-        # raster plot of the event inputs spike times
-        Panel(Input_data.spiketrains, xlabel="Input spikes", yticks=True, markersize=0.2, xlim=(0, time_data), ylim=(0, Input.size)),
-        # raster plot of the event inputs spike times
-        Panel(Events_data.spiketrains, xlabel="Events spikes", yticks=True, markersize=0.2, xlim=(0, time_data), ylim=(0, Events.size)),
-        # raster plot of the Reaction neurons spike times
-        Panel(Reaction_data.spiketrains, xlabel="ROI detector spikes", yticks=True, markersize=0.2, xlim=(0, time_data), ylim=(0, Reaction.size)),
-        # raster plot of the Reaction neurons spike times
-        Panel(ROI_data.spiketrains, xlabel="ROI visualisation spikes", yticks=True, markersize=0.2, xlim=(0, time_data), ylim=(0, ROI.size)),
-
-        # membrane potential of the Events neurons
-        Panel(Events_data.filter(name='v')[0], ylabel="Membrane potential (mV)\nEvents layer", xlim=(0, time_data), linewidth=0.2, legend=False, yticks=True),
-        # # membrane potential of the Reaction neurons
-        Panel(Reaction_data.filter(name='v')[0], ylabel="Membrane potential (mV)\nROI detector layer", yticks=True, xlim=(0, time_data), linewidth=0.2, legend=False),
-        # # membrane potential of the Reaction neurons
-        Panel(ROI_data.filter(name='v')[0], ylabel="Membrane potential (mV)\nROI visualisation layer", yticks=True, xlim=(0, time_data), linewidth=0.2, legend=False, xlabel="Time (ms)", xticks=True),
-
-        title="Saliency detection",
-        annotations="Simulated with "+ options.simulator.upper() + "\nInput events from "+options.events
-    ).save(figure_filename)
-    print("Figure correctly saved as", figure_filename)
-
 
 
 ######################## SAVE DATA ########################
@@ -722,33 +598,15 @@ def spikes2ev(spikes, width, height, coord_t, polarity=1):
     events = events[events[:,coord_t].argsort()]
     return events
 
-save = input("Save ROI ? (y/n) ")
+save = input("Save data ? (y/n) ")
 
-if options.save_all:
-    if options.inter_layer:
-        Events_filename = normalized_filename("Results", "Saliency detection - Events", "npy", options.simulator)
-        np.save(
-            Events_filename,
-            spikes2ev(Events_data.spiketrains, x_event, y_event, coord_ts)
-        )
-        # Events.write_data(Events_filename)
-        print("Output data from Events layer correctly saved as", Events_filename)
-
+if options.save or save=="y":
     Reaction_filename = normalized_filename("Results", "Saliency detection - ROI detector", "npy", options.simulator)
     np.save(
         Reaction_filename,
         spikes2ev(Reaction_data.spiketrains, x_reaction, y_reaction, coord_ts)
     )
     print("Output data from ROI detector layer correctly saved as", Reaction_filename)
-
-if options.save_all or options.save_ROI or save=="y":
-
-    ROI_filename = normalized_filename("Results", "Saliency detection - ROI visualisation", "npy", options.simulator)
-    np.save(
-        ROI_filename,
-        spikes2ev(ROI_data.spiketrains, x_input, y_input, coord_ts)
-    )
-    print("Output data from ROI selection layer correctly saved as", ROI_filename)
 
     if options.classif:
         for c in range(nb_classifiers):
