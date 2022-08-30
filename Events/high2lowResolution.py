@@ -2,7 +2,10 @@ from matplotlib import use
 import esim_py
 import os
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
 import argparse
 from getTimestamps import getTS
 from skimage import io, img_as_ubyte
@@ -13,7 +16,7 @@ import shutil
 parser = argparse.ArgumentParser(description="Get timestamps for an image dataset given as input")
 parser.add_argument("dataset", metavar="D", type=str, nargs="+", help="Input dataset")
 parser.add_argument("--contrast_threshold", "-ct", help="Define the contrast threshold used to compute the events", nargs=1, metavar="CT", type=int, default=[0.25])
-parser.add_argument("--frame_interval", "-fi", help="Define the time interval between frames", nargs=1, metavar="F", type=int, default=[50])
+parser.add_argument("--frame_interval", "-fi", help="Define the time interval between frames", nargs=1, metavar="F", type=float, default=[50])
 parser.add_argument("--high_resolution", "-HR", help="Get the events with a high resolution (True by default)", action="store_true", default=True)
 parser.add_argument("--low_resolution", "-LR", help="Get the events with a low resolution (False by default)", action='store_true', default=False)
 parser.add_argument("--reduction_coeff", "-rc", help="Define the reduction coefficient for the reduction into low resolution", nargs=1, default=[0.25], type=float, metavar="RC")
@@ -100,7 +103,7 @@ if args.figure:
     # get optimal parameters
     contrast_thresholds = [0.1, 0.2, 0.3, 0.4, 0.5]
     number_events_per_plot = [5000, 10000, 33000, 66000, 100000]
-
+    
     fig, ax = plt.subplots(ncols=len(contrast_thresholds), nrows=len(number_events_per_plot), figsize=(10,10), sharex=True, sharey=True)
     fig.supxlabel("Number of events in the plot")
     fig.supylabel("Positive and negative contrast thresholds")
@@ -117,7 +120,7 @@ if args.figure:
             if y == 0:
                 ax[x,y].set_ylabel(str(ct))
 
-        plt.show()
+    plt.savefig("contrast_train.png")
     
 
 # clean up
