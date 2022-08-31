@@ -1,10 +1,12 @@
+from operator import index
 import numpy as np
-import sys
 # from reduceEvents import EventCount as EventReduction
 import h5py as h
+from datetime import datetime as d
+from tqdm import tqdm
 
 def loadData(file_name):
-    if file_name.endswith('npy'): 
+    if file_name.endswith('npy'):
         ev = np.load(file_name)
     elif file_name.endswith('npz'):
         ev = np.load(file_name)
@@ -23,7 +25,7 @@ def loadData(file_name):
 def getFormat(ev):
     string_coord = [None]*4
     set_coord = [2,3]
-    
+
     if max(ev[:,2]) in [0,1]:
         coord_p = 2
         set_coord.remove(2)
@@ -40,11 +42,11 @@ def getFormat(ev):
         coord_ts = set_coord[0]
         coord_x = 0
         coord_y = 1
-    
+
     string_coord[coord_x] = 'x'
     string_coord[coord_y] = 'y'
     string_coord[coord_ts] = 't'
-    
+
     return ''.join(string_coord)
 
 def getCoordLR(
@@ -64,17 +66,17 @@ def LR2HR(LRimage, div, format):
     Y = getCoordHR(LRimage[:,1], div)
     P = LRimage[:,2]
     T = LRimage[:,3]
-    
+
     X_ = []
     Y_ = []
     P_ = []
     T_ = []
 
     for x,y,p,t in zip(X,Y,P,T):
-        X_ += list(np.random.random_integers(low=x,high=min(max(X),x+div-1),size=div*div)) 
-        Y_ += list(np.random.random_integers(low=y,high=min(max(Y),y+div-1),size=div*div)) 
-        P_ += [p]*div*div 
-        T_ += [t]*div*div 
+        X_ += list(np.random.random_integers(low=x,high=min(max(X),x+div-1),size=div*div))
+        Y_ += list(np.random.random_integers(low=y,high=min(max(Y),y+div-1),size=div*div))
+        P_ += [p]*div*div
+        T_ += [t]*div*div
 
 
     HRimage = np.zeros((len(X)*16,len(format)))
@@ -93,10 +95,10 @@ def getMinMax(coord, insert_size, fig_size):
 
 def transformRoi(
     ROI,
-    insert_size,
+    ROI_div,
     size,
     div=4
-    ):  
+    ):
     '''
     Transform ROI data, originally a 4 channels np.array as xypt (default) in low resolution, into a 5 channels np.array as x_min,x_max,y_min,y_max,t in high resolution
     '''
@@ -110,8 +112,8 @@ def transformRoi(
     for x,y,t in zip(X,Y,T):
 
         # min and max coordinates of insert part in HR
-        x_min_HR, x_max_HR = getMinMax(getCoordHR(x, div), insert_size, getCoordHR(size[0], div))
-        y_min_HR, y_max_HR = getMinMax(getCoordHR(y, div), insert_size, getCoordHR(size[1], div))
+        x_min_HR, x_max_HR = getMinMax(getCoordHR(x, ROI_div), ROI_div, size[0])
+        y_min_HR, y_max_HR = getMinMax(getCoordHR(y, ROI_div), ROI_div, size[1])
 
         current_ROI = np.array([[x_min_HR, x_max_HR, y_min_HR, y_max_HR, t]])
 
@@ -129,11 +131,11 @@ def getFrameImage(
     ):
 
     original_events = np.column_stack((X,Y,P,T))
-    
+
     event_reduction = EventReduction(input_ev=original_events, coord_t=3,div=div)
     event_reduction.reduce()
     return event_reduction.events
-    
+
 
 
 def getPuzzle(
@@ -146,7 +148,7 @@ def getPuzzle(
     ROI_latency = 1000, # microsecond
     method = 'eventcount'
     ):
-
+    
     # import corresponding method
     assert method in ['funelling','eventcount', 'cubic', 'linear']
 
@@ -169,54 +171,72 @@ def getPuzzle(
     except ValueError:
         insert_image = np.zeros((0,4))
 
+    insert_image = insert_image[insert_image[:,format_HR.index('t')].argsort()]
     X = insert_image[:,format_HR.index('x')]
     Y = insert_image[:,format_HR.index('y')]
     P = insert_image[:,format_HR.index('p')]
     T = insert_image[:,format_HR.index('t')]
-    
+
     # get frame image (LR)
     if len(frame_image) == 0:
         frame_image = getFrameImage(X,Y,P,T,div)
         # translate frame image (LR) into HR coordinates
         frame_image = LR2HR(frame_image, div, format_HR)
 
+    frame_image = frame_image[frame_image[:,-1].argsort()]
+    T_frame = frame_image[:,-1]
+
     # get size of frame image (HR)
     x_size_frame, y_size_frame = size
 
     # get transformed ROIs min and max x and y coordinates, respectively in LR and HR
     transformed_ROI_HR = transformRoi(ROI, ROI_div, size, div)
+    t_ROI = transformed_ROI_HR[:,-1]
 
     # launch puzzle
+    last_t_delay = ROI_latency + 1
+    final_image = []
+
+    idx_insert=0
+    idx_frame=0
     last_t = 0
-    x_min_HR = y_min_HR = [-1]
-    x_max_HR = [x_size_frame]
-    y_max_HR = [y_size_frame]
+    last_ROI = []
 
-    final_image = np.zeros((0,4))
+    idx_roi = 0
 
-    for t in T:
+    for t in tqdm(np.unique(T_frame)):
 
-        insert = insert_image[T == t]
-        frame = frame_image.copy()
-    
-        if t in transformed_ROI_HR[:,-1]:
-            last_t = 0
-            x_min_HR, x_max_HR, y_min_HR, y_max_HR = transformed_ROI_HR[
-                transformed_ROI_HR[:,-1] == t
-            ][:,:-1].T
+        # get insert at t
+        while idx_insert < len(T) and T[idx_insert] < last_t:
+            idx_insert += 1
+        prev_idx_insert = idx_insert
+        while idx_insert < len(T) and T[idx_insert] <= t:
+            idx_insert += 1
+        insert = insert_image[prev_idx_insert:idx_insert]
 
-        elif last_t > ROI_latency:
-            x_min_HR = y_min_HR = [-1]
-            x_max_HR = [x_size_frame]
-            y_max_HR = [y_size_frame]
-        
-        global_insert = np.zeros((0,4))
-        
-        if len(x_min_HR) > 1:
+        # get frame at t
+        prev_idx_frame = idx_frame
+        while idx_frame < len(T_frame) and T_frame[idx_frame] == t:
+            idx_frame += 1
+        frame = frame_image[prev_idx_frame:idx_frame]
 
-            for _x_min_HR_,_x_max_HR_, _y_min_HR_, _y_max_HR_ in zip(x_min_HR,x_max_HR, y_min_HR, y_max_HR) :
+        # get any t in t_roi which happened between now and last loop
+        while idx_roi <len(t_ROI) and t_ROI[idx_roi] < last_t:
+            idx_roi += 1
+        prev_idx_roi = idx_roi
+        while idx_roi <len(t_ROI) and t_ROI[idx_roi] <= t:
+            idx_roi += 1
+        current_ROI = transformed_ROI_HR[prev_idx_roi:idx_roi]
 
-                # get insert part from insert image (HR)      
+        if len(current_ROI) > 0:
+            last_t_delay = 0
+            last_ROI = current_ROI
+
+        if last_t_delay <= ROI_latency:
+            global_insert = np.zeros((0,4))
+            
+            for _x_min_HR_,_x_max_HR_, _y_min_HR_, _y_max_HR_, _ in last_ROI :
+
                 insert_ = insert[
                     (insert[:,format_HR.index('x')] > _x_min_HR_) &
                     (insert[:,format_HR.index('x')] < _x_max_HR_) &
@@ -224,7 +244,7 @@ def getPuzzle(
                     (insert[:,format_HR.index('y')] < _y_max_HR_)
                 ]
                 global_insert = np.vstack((global_insert, insert_))
-
+            
                 # update mask
                 frame = frame[~(
                     (frame[:,0] >= _x_min_HR_) &
@@ -232,34 +252,17 @@ def getPuzzle(
                     (frame[:,1] >= _y_min_HR_) &
                     (frame[:,1] <= _y_max_HR_)
                 )]
-        
-        else : 
-            # get insert part from insert image (HR)      
-            insert_ = insert[
-                (insert[:,format_HR.index('x')] > x_min_HR[0]) &
-                (insert[:,format_HR.index('x')] < x_max_HR[0]) &
-                (insert[:,format_HR.index('y')] > y_min_HR[0]) &
-                (insert[:,format_HR.index('y')] < y_max_HR[0])
-            ]
-            global_insert = np.vstack((global_insert, insert_))
+            
+            final_image.append(frame)
+            final_image.append(global_insert)
 
-            # update mask
-            frame = frame[~(
-                (frame[:,0] >= x_min_HR[0]) &
-                (frame[:,0] <= x_max_HR[0]) &
-                (frame[:,1] >= y_min_HR[0]) &
-                (frame[:,1] <= y_max_HR[0])
-            )]
+        else :
+            final_image.append(frame)
 
-        # puzzle frame image and LR image
-        final_image = np.vstack((
-            final_image,
-            frame[frame[:,-1] == t],
-            global_insert
-        ))
+        last_t_delay += 1
+        last_t = t
 
-        last_t += 1
-
+    final_image = np.concatenate(final_image)
     return final_image
 
 
@@ -281,7 +284,7 @@ if len(sys.argv) > 1 :
     ROI = loadData(args.ROI)
 
     image = getPuzzle(
-        insert_image=HR, 
+        insert_image=HR,
         ROI=ROI,
         div=args.divider,
         ROI_div=args.insert_size,
