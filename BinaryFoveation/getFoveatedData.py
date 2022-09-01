@@ -183,8 +183,8 @@ def getPuzzle(
         # translate frame image (LR) into HR coordinates
         frame_image = LR2HR(frame_image, div, format_HR)
 
-    frame_image = frame_image[frame_image[:,-1].argsort()]
-    T_frame = frame_image[:,-1]
+    frame_image = frame_image[frame_image[:,format_HR.index('t')].argsort()]
+    T_frame = frame_image[:,format_HR.index('t')]
 
     # get size of frame image (HR)
     x_size_frame, y_size_frame = size
@@ -247,10 +247,10 @@ def getPuzzle(
             
                 # update mask
                 frame = frame[~(
-                    (frame[:,0] >= _x_min_HR_) &
-                    (frame[:,0] <= _x_max_HR_) &
-                    (frame[:,1] >= _y_min_HR_) &
-                    (frame[:,1] <= _y_max_HR_)
+                    (frame[:,format_HR.index('x')] >= _x_min_HR_) &
+                    (frame[:,format_HR.index('x')] <= _x_max_HR_) &
+                    (frame[:,format_HR.index('y')] >= _y_min_HR_) &
+                    (frame[:,format_HR.index('y')] <= _y_max_HR_)
                 )]
             
             final_image.append(frame)

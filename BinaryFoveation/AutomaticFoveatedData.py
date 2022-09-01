@@ -44,6 +44,9 @@ def saveEvents(events, event_file, save_to):
 
 not_done = []
 
+if args.divider == 0:
+    args.divider = 1
+
 for dr in args.dataset:
     print("\n\n>>",dr)
 
@@ -71,7 +74,7 @@ for dr in args.dataset:
         if len(files) > 0: 
             
             for event_file in files :
-                print(repertory, event_file, end=" ")
+                print(repertory, event_file)
 
                 if not path.exists(path.join( fovea_repertory, repertory, event_file.replace("npz","npy")) ) and path.exists(path.join( ROI_repertory, repertory, event_file.replace("npz","npy")) ):
                     
@@ -88,20 +91,19 @@ for dr in args.dataset:
                         foveated_events = LR
                     
                     else :
-                    # print(event_file,"yessss",ROI.shape, LR.shape)
                         foveated_events = getPuzzle(
                             insert_image=HR,
                             ROI=ROI,
                             frame_image=LR,
-                            div=4,
-                            ROI_div=4*5,
+                            div=args.divider,
+                            ROI_div=args.divider*5,
                             size=size,
                             ROI_latency=1e6,
                             method=args.method
                         )
 
                     print(d.now() - start )
-                        
+                    
                     saveEvents(
                         foveated_events,
                         event_file,
