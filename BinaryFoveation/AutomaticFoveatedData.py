@@ -8,18 +8,20 @@ import argparse
 parser = argparse.ArgumentParser(description="Automatically reduce data")
 parser.add_argument("--dataset", "-da", nargs="+", help="Dataset repertory", metavar="D", type=str)
 parser.add_argument("--divider","-div", metavar="d", type=int, help="Dividing factor", default=4)
-parser.add_argument("--method", "-m", help="Reduction method (between 'funelling','eventcount', 'cubic', 'linear')", metavar="m", type=str)
+parser.add_argument("--method", "-m", help="Reduction method (between 'funnelling','eventcount', 'cubic', 'linear')", metavar="m", type=str)
 parser.add_argument("--ROI", "-roi", help="Path to ROI repertory", metavar="m", type=str)
 args = parser.parse_args()
 
-if "funelling" in args.ROI:
-    end = 'funelling'
+if "funnelling" in args.ROI:
+    end = 'funnelling'
 elif 'eventcount' in args.ROI:
     end = 'eventcount'
 elif 'linear' in args.ROI:
     end = 'linear'
 elif 'cubic' in args.ROI:
     end = 'cubic'
+elif 'none' in args.ROI:
+    end = 'none'
 
 # Datasets :
 # "/home/amelie/Scripts/Data/DVS128Gesture/DVS128G_classifier_data/",
@@ -60,7 +62,7 @@ for dr in args.dataset:
         original_repertory = dr+"test/"
         ROI_repertory = args.ROI
         fovea_repertory = dr+"foveated_data_"+args.method+"_div"+str(args.divider)+"_ROI"+end+"/"
-        reduced_repertory = dr+"reduced_data_"+args.method+"_div"+str(args.divider)+"/"
+        reduced_repertory = dr+"reduced_data_"+args.method+"_div"+str(args.divider)+"/"    
         size=(346,260)
 
     assert path.exists(reduced_repertory)
