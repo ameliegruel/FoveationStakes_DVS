@@ -45,7 +45,7 @@ def saveEvents(events, event_file, save_to): #, format_HR):
         f.close()
 
 not_done = []
-Div = [80] #[5,10,20,40,60,80]
+Div = [5,10,20,40,60,80]
 
 if 'DVS128Gesture' in args.dataset:
     size=(128,128)
@@ -67,10 +67,6 @@ for div in Div:
             for event_file in files :
                 print(args.dataset,div,"% -",repertory, event_file, end=" ")
                 data = loadData(path.join( rep_path, event_file))
-                # print(len(data))
-                # print(data[:10])
-
-                # try :
                 
                 if not path.exists(path.join( new_repertory, repertory, event_file.replace("npz","npy")) ): 
 
@@ -105,9 +101,5 @@ for div in Div:
 
                 else : 
                     print()
-                
-                # except ValueError:
-                #     print()
-                #     pass
         
     print("Runtime for",div,'% of', args.dataset,":", d.now() - global_start,"\n")
