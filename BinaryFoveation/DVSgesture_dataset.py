@@ -55,9 +55,13 @@ class DVSGesture_dataset(VisionDataset):
         else : 
             assert method in ['funnelling', 'eventcount', 'linear', 'cubic'], "Wrong 'method' argument"
             assert roi_method in ['funnelling', 'eventcount', 'linear', 'cubic', None], "Wrong 'roi_method' argument"
+            
             if roi_method == None:
                 roi_method = 'no reduc'
-            self.folder_name = 'Foveated data/ROI data - '+roi_method+'/Method '+method+'/'
+            self.folder_name = 'Foveated data/ROI data - '+roi_method+'/Method - '+method+'/'
+            
+            if roi_method == 'no reduc':
+                roi_method = 'none'
             self.zip_name = 'foveated_data_'+method+'_div'+str(spatial_divider)+'_ROI'+roi_method
 
         if structural_divider != 100:
