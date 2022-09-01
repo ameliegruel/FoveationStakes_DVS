@@ -1,4 +1,5 @@
 from os import walk, path, makedirs
+import time
 
 # from pyNN.utility import normalized_filename
 # from pyNN.utility.plotting import Figure, Panel
@@ -178,7 +179,8 @@ def spikes2ev(spikes, width, height, coord_t, polarity=1):
     events = np.zeros((0,4))
     for n in range(len(spikes)):
         x,y = np.unravel_index(n, (width, height))
-        pixel_events = np.array([ newEvent(x,y,polarity,t.item(), coord_t) for t in spikes[n]]) 
+        pixel_events = np.array([ newEvent(x,y,polarity, t.item(), coord_t) for t in spikes[n]])
+        # print(n, pixel_events)
         try : 
             events = np.vstack((
                 events,
@@ -265,9 +267,10 @@ def getEvents(path_ev, size, spatial_reduce=False, time_reduce=False, time_facto
         events_downscale_factor_1D = 1
         x_input, y_input = ev_reduction.width_downscale, ev_reduction.height_downscale
     
-    sim_length = 1e3
-    if len(ev) != 0 and max(ev[:,coord_ts]) < sim_length :
-        sim_length = ceil(max(ev[:,coord_ts]))
+    if len(ev) == 0:
+        return ev, x_input, y_input, 0, coord_ts
+
+    sim_length = ceil(max(ev[:,coord_ts]))
     
     ev = ev2spikes( ev, coord_t=coord_ts, width=x_input, height=y_input )
 
@@ -429,26 +432,19 @@ else :
 for dr in args.dataset:
     print("\n\n>>",dr)
 
-    # if args.method != 'none':
-    #     if 'DVS128Gesture' in dr:
-    #         original_repertory = dr+"reduced_data_"+args.method+"_div"+str(args.divider)+"/events_np/"
-    #         SNN_repertory = dr+"ROI_data_"+args.method+"_div"+str(args.divider)+"/events_np/"
-    #     elif 'DDD17' in dr:
-    #         original_repertory = dr+"reduced_data_"+args.method+"_div"+str(args.divider)+"/"
-    #         SNN_repertory = dr+"ROI_data_"+args.method+"_div"+str(args.divider)+"/"
-    # else :
     if 'DVS128Gesture' in dr:
         original_repertory = dr+"DVSGesture/ibmGestureTest/"
         SNN_repertory = dr+"ROI_data_"+args.method+"_div"+str(args.divider)+"/"
         size=(128,128)
+        time_reduce = False
     elif 'DDD17' in dr:
         original_repertory = dr+"test/"
         SNN_repertory = dr+"ROI_data_"+args.method+"_div"+str(args.divider)+"/"
         size=(346,260)
+        time_reduce = True
 
-    init=False
+    # init=False
     
-    i = 0
     for (rep_path, _, files) in walk(original_repertory):
         repertory=rep_path.replace(original_repertory, "")
 
@@ -461,12 +457,11 @@ for dr in args.dataset:
 
                     i = 0
                     # while True:
-                    # try:
                     original_events, x_input, y_input, sim_length, coord_ts = getEvents(
                         path.join(rep_path, event_file),
                         size,
                         spatial_reduce=SpReduce, 
-                        time_reduce=True, 
+                        time_reduce=time_reduce, 
                         time_factor=0.001
                     )
 
@@ -474,13 +469,10 @@ for dr in args.dataset:
                         SNN_events = np.zeros((0,4))
 
                     else:
-                        # initialize SNN
-                        if init == False:
-                            sim.end()
-                            sim.setup(timestep=1)
-                            Input, Reaction, input2reaction, x_reaction, y_reaction = init_SNN(sim, original_events,x_input,y_input)
-                            init=True 
-                            print("Network has been correctly initialised", end=" ")
+                        sim.end()
+                        sim.setup(timestep=1)
+                        Input, Reaction, input2reaction, x_reaction, y_reaction = init_SNN(sim, original_events,x_input,y_input)
+                        print("Network has been correctly initialised", end=" ")
 
                         # SNN
                         start = d.now()
@@ -492,34 +484,17 @@ for dr in args.dataset:
                             input2reaction, 
                             x_reaction, y_reaction,
                             sim_length=sim_length,
-                            time_reduce=True,
+                            time_reduce=time_reduce,
                             time_factor=1000
                         )
-
-                    print(d.now() - start,end=" ")
+                        print(d.now() - start,end=" ")
+                    
                     saveEvents(
                         SNN_events,
                         event_file,
                         path.join( SNN_repertory, repertory)
                     )
                     print("saved")
-                    # break
-                    
-                    # except InvalidDimensionsError:
-                    #     init = False
-
-                    # except : 
-                    #     if plus == 0:
-                    #         plus = 1
-                    #     elif plus == 1: 
-                    #         plus == 2
-                    #     elif plus == 3:
-                    #         plus = -1
-                    #     else :
-                    #         plus = 0
-                    #     # break
-                    
-                    # i += 1
                 
                 else : 
                     print()
