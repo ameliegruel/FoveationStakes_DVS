@@ -18,6 +18,7 @@ from math import ceil
 import itertools as it
 from datetime import datetime as d
 import h5py as h
+from tqdm import tqdm
 
 from pyNN.parameters import ParameterSpace
 import nest
@@ -50,17 +51,20 @@ def GaussianConnectionWeight(x,y, w_max=50.0):
 
     return w
 
-def ev2spikes(events,coord_t,width,height):
+def ev2spikes(events,coord_t, width,height):
     # print("\nTranslating events to spikes... ")
-    if not 1<coord_t<4:
-        raise ValueError("coord_t must equals 2 or 3")
+    # if not 1<coord_t<4:
+    #     raise ValueError("coord_t must equals 2 or 3")
 
-    coord_t-=2
+    if coord_t == 0:
+        coord_x, coord_y = 1,2
+    else: 
+        coord_x, coord_y = 0,1
 
     spikes=[[] for _ in range(width*height)]
-    for x,y,*r in events:
-        coord = int(np.ravel_multi_index( (int(x),int(y)) , (width, height) ))
-        spikes[coord].append(float(r[coord_t]))
+    for ev in events:
+        coord = int(np.ravel_multi_index( (int(ev[coord_x]),int(ev[coord_y])) , (width, height) ))
+        spikes[coord].append(float(ev[coord_t]))
     return spikes
 
 def getEvents(path_ev, size, spatial_reduce=False, time_reduce=False, time_factor=0.001, method='eventcount'):
@@ -76,6 +80,17 @@ def getEvents(path_ev, size, spatial_reduce=False, time_reduce=False, time_facto
         ), axis=1).astype('float64')
         ev = ev.copy()
         input_type = "numpy"
+    
+    elif path_ev.endswith('txt'):
+        ev = []
+        f = open(path_ev, 'r')
+        i = 0
+        for line in tqdm(f.readlines()):
+            if line != '':
+                ev.append([[float(e) for e in line.split()]])
+                i += 1
+        ev = np.concatenate(ev).astype('float')
+        input_type = 'txt'
 
     elif path_ev.endswith("npy"):
         ev = np.load(path_ev)
@@ -97,15 +112,19 @@ def getEvents(path_ev, size, spatial_reduce=False, time_reduce=False, time_facto
         sys.exit()
 
     # adapt to the 2 possible formalisms (x,y,p,t) or (x,y,t,p)
-    if max(ev[:,2] == 1):
+    if max(ev[:,0]) > size[0] or max(ev[:,0]) < size[0] - 5:
+        coord_ts = 0
+    elif max(ev[:,2] == 1):
         coord_ts = 3
     elif max(ev[:,3] == 1):
         coord_ts = 2
 
     # adapt to time unit
+    if input_type == 'txt':
+        ev[:,coord_ts] *= 1e6
+
     if time_reduce:
         ev[:,coord_ts] *= time_factor
-
     min_t = min(ev[:,coord_ts])
     ev[:,coord_ts] -= min_t
     ev[:,coord_ts] += 1.5
@@ -167,7 +186,7 @@ elif "spiNNaker" in sim.__file__:
 dt = 1/80000
 sim.setup(timestep=1)
 
-events_downscale_factor_1D = 4
+events_downscale_factor_1D = 2 #4
 reaction_downscale_factor_1D = 5
 
 assert options.method in ['funelling','eventcount', 'cubic', 'linear','none']
@@ -189,6 +208,8 @@ elif 'gesture' in options.events:
     size=(128*3,128)
 elif 'DDD17' in options.events:
     size=(346,260)
+elif 'shapes' in options.events:
+    size = (240,180)
 
 ######################## GET DATA ########################
 
@@ -609,6 +630,8 @@ def newEvent(x,y,p,t, coord_t):
         return [x,y,t,p]
     elif coord_t == 3:
         return [x,y,p,t]
+    elif coord_t == 0:
+        return [t,x,y,p]
 
 def spikes2ev(spikes, width, height, coord_t, polarity=1, time_reduce=False, time_factor=0.001):
     events = np.zeros((0,4))
@@ -635,5 +658,12 @@ if options.save :
         spikes2ev(Reaction_data.spiketrains, x_reaction, y_reaction, coord_ts, time_reduce=time_reduce)
     )
     print("Output data from ROI detector layer correctly saved as", Reaction_filename)
+
+    Output1_filename = normalized_filename("Results", "Saliency detection - Output", "npy", options.simulator)
+    np.save(
+        Output1_filename,
+        spikes2ev(Output1_data.spiketrains, x_input, y_input, coord_ts, time_reduce=time_reduce)
+    )
+    print("Output data from Output layer correctly saved as", Output1_filename)
 
 sim.end()
