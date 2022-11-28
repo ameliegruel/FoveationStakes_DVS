@@ -204,8 +204,10 @@ else:
 
 if 'DVS128Gesture' in options.events:
     size=(128,128)
-elif 'gesture' in options.events:
+elif 'gesture' in options.events and 'trio' in options.events:
     size=(128*3,128)
+elif 'gesture' in options.events and 'duo' in options.events:
+    size=(128*2,128)
 elif 'DDD17' in options.events:
     size=(346,260)
 elif 'shapes' in options.events:
@@ -346,7 +348,7 @@ class LastSpikeRecorder(object):
         if t > 0:
             self._spikes = map(
                 lambda x: x[-1].item() if len(x) > 0 else 0,
-                self.population.get_data("spikes").segments[0].spiketrains
+                self.population.get_data("spikes", clear=True).segments[0].spiketrains
             )
             self._spikes = np.fromiter(self._spikes, dtype=float)
         return t+self.interval
