@@ -3,7 +3,7 @@
 """
 Spiking neural network for saliency detection in event-camera data
 Author : Amélie Gruel - Université Côte d'Azur, CNRS/i3S, France - amelie.gruel@i3s.unice.fr
-Run as : $ python3 getSaliency.py spiNNaker --events [events]
+Run as : $ python3 getSaliency.py nest
 Use of DDD17 (DVS Driving Dataset 2017) annotated by [Alonso, 2017]
 """
 
@@ -21,6 +21,9 @@ import itertools as it
 from datetime import datetime as d
 from reduceEvents import SpatialFunnelling
 
+from pyNN.parameters import ParameterSpace
+import nest 
+from pyNN.nest.conversion import make_sli_compatible
 
 ################################################### FUNCTIONS #################################################################
 
@@ -43,7 +46,8 @@ def GaussianConnectionWeight(x,y, w_max=50.0):
         [ [np.linalg.norm(arr) for arr in lines]   for lines in abs(coordonates - diag_indices) ]
     )
     
-    w = np.maximum( np.minimum( np.exp( distances ) * (1/size) , w_max), 0).reshape(-1)
+    w = np.maximum( np.minimum( np.exp( distances ) * (1/size) , w_max), 0)
+    
     return w
 
 
@@ -61,8 +65,6 @@ sim, options = get_simulator(("--plot-figure", "Plot the simulation results to a
 
 if options.debug:
     init_logging(None, debug=True)
-
-sim_ = "spiNNaker"
 
 sim.setup(timestep=10)
 
@@ -125,17 +127,18 @@ if options.reduce :
     ev_reduction.run()
     ev = ev_reduction.events
     events_downscale_factor_1D = 1
+    x_input, y_input = ev_reduction.width_downscale, ev_reduction.height_downscale
 
 max_time = int(np.max(ev[:,coord_ts]))
 print("\nTime length of the data :",max_time)
 start_time = 0
-stop_time = 1e6
+stop_time = 1e3
 
 try :
     ev = ev[np.logical_and( ev[:,coord_ts]>start_time , ev[:,coord_ts]<stop_time )]
     ev[:,coord_ts] -= start_time
     time_data = int(np.max(ev[:,coord_ts]))
-    ev, x_input, y_input = ev2spikes( ev )
+    ev, x_input, y_input = ev2spikes( ev, x_input, y_input )
     print("Simulation will be run on", len(ev), "events\n")
 
 except ValueError:
@@ -172,7 +175,6 @@ Reaction = sim.Population(
     x_reaction * y_reaction,
     sim.IF_cond_exp(**Reaction_parameters),
     label="Reaction",
-    # structure=Grid2D(dx=reaction_downscale_factor_1D, dy=reaction_downscale_factor_1D, z=50, aspect_ratio=x_event/y_event)
 )
 
 Reaction.record(("spikes","v"))
@@ -182,11 +184,11 @@ print("\nSize of populations :\n> Input", Input.size, "with shape",(x_input, y_i
 ######################## CONNECTIONS ########################
 print("Initiating connections...")
 
-input2reaction_connections = []
+input2reaction_weights = []
 
 for X,Y in it.product(range(x_reaction), range(y_reaction)):
     idx = np.ravel_multi_index( (X,Y) , (x_reaction, y_reaction) ) 
-    input2reaction_connections += [
+    input2reaction_weights += [
         (
             np.ravel_multi_index( (x,y) , (x_input, y_input) ) , 
             idx
@@ -194,19 +196,10 @@ for X,Y in it.product(range(x_reaction), range(y_reaction)):
         for x in range(int(reaction_downscale_factor_1D*X), int(reaction_downscale_factor_1D*(X+1))) if x < x_input
         for y in range(int(reaction_downscale_factor_1D*Y), int(reaction_downscale_factor_1D*(Y+1))) if y < y_input
     ]
-
-timing_rule = sim.SpikePairRuleWeightAdaptation(t_max=100)
-weight_rule = sim.AdditiveWeightDependenceWeightAdaptation()
-
-WeightAdaptation_model = sim.WeightAdaptationMechanism(
-    timing_rule, weight_rule,
-    weight=1
-)
-
 input2reaction = sim.Projection(
     Input, Reaction,
-    connector=sim.FromListConnector(input2reaction_connections),
-    synapse_type=WeightAdaptation_model,
+    connector=sim.FromListConnector(input2reaction_weights),
+    synapse_type=sim.StaticSynapse(weight=1),
     receptor_type="excitatory",
     label="Connection events region to reaction"
 )
@@ -225,30 +218,113 @@ print("Network initialisation OK")
 
 ######################## RUN SIMULATION ########################
 
-class WeightRecorder(object):
-
-    def __init__(self, sampling_interval, proj):
+class LastSpikeRecorder(object):
+    
+    def __init__(self, sampling_interval, pop):
         self.interval = sampling_interval
-        self.projection = proj
+        self.population = pop
+        self._spikes = np.zeros(self.population.size)
+        self.global_spikes = [[] for _ in range(self.population.size)]
+        self.final_spikes = []
+        self.annotations = {}
 
-        self._weights = []
-       
     def __call__(self, t):
         if t > 0:
-            weight = self.projection.get('weight',format='array', with_address=False)
-            # np.nan_to_num(weight,copy=False)
-            weight = weight[~np.isnan(weight)]
-            self._weights.append(weight)
+            population_spikes = self.population.get_data("spikes", clear=True).segments[0].spiketrains
+            self._spikes = map(
+                lambda x: x[-1].item() if len(x) > 0 else 0, population_spikes
+            )
+            self._spikes = np.fromiter(self._spikes, dtype=float)
+            assert len(self._spikes) == len(self.global_spikes)
+            if len(np.unique(self._spikes)) > 1:
+                idx = np.where(self._spikes != 0)[0]
+                for n in idx:
+                    self.global_spikes[n].append(self._spikes[n])
+            
+        if t == 1:
+            for n, neuron_spikes in enumerate(population_spikes):
+                self.annotations[n] = neuron_spikes.annotations
+
         return t+self.interval
 
-    def update_weights(self, w):
-        assert self._weights[-1].shape == w.shape
-        self._weights[-1] = w
+    def get_spikes(self):
+        for n, s in enumerate(self.global_spikes):
+            self.final_spikes.append( neo.core.spiketrain.SpikeTrain(s*ms, t_stop=stop_time, **self.annotations[n]) )
+        return self.final_spikes
 
+
+class dynamicWeightAdaptation(object):
+    def __init__(self, sampling_interval, projection):
+        self.interval = sampling_interval
+        self.projection = projection
+
+        # source & target
+        self.source = projection.pre
+        self.source_first_id = self.source.first_id
+        self.target = projection.post
+
+        # weights
+        self.default_w = np.ones((self.source.size, self.target.size)) * 0.7
+        self._weights = []
+        self.increase = 0.01
+        
+        # initialise connections
+        conn_ = nest.GetConnections(source=np.unique(self.projection._sources).tolist())
+        self.connections = {}
+        self.source_mask = {}
+        for postsynaptic_cell in self.target.local_cells:
+            self.connections[postsynaptic_cell] = tuple([c for c in conn_ if c[1] == postsynaptic_cell])
+            self.source_mask[postsynaptic_cell] = [x[0] - self.source_first_id for x in self.connections[postsynaptic_cell]]
+
+    
+    def __call__(self, t):
+        firing_t = spikesReaction._spikes
+        w = self.projection.get('weight', format='array', with_address=False)
+        np.nan_to_num(w,copy=False)
+
+        # Get weights
+        w = np.where(
+            np.logical_and(
+                firing_t > t-1,
+                firing_t != 0
+            ),
+            w + self.increase,
+            np.where(
+                firing_t < t-100,
+                np.minimum(w, self.default_w),
+                w
+            )
+        ).astype('float64')
+
+        # Set weights with nest
+        attributes = self.projection._value_list_to_array({'weight':w})
+        parameter_space = ParameterSpace(attributes,
+                                         self.projection.synapse_type.get_schema(),
+                                         (self.source.size, self.target.size))
+        parameter_space = self.projection.synapse_type.translate( self.projection._handle_distance_expressions(parameter_space))
+
+        parameter_space.evaluate(mask=(slice(None), self.target._mask_local))  # only columns for connections that exist on this machine
+
+        for postsynaptic_cell, connection_parameters in zip(self.target.local_cells, parameter_space.columns()):    
+            value = make_sli_compatible(connection_parameters['weight'])
+            nest.SetStatus(self.connections[postsynaptic_cell], 'weight', value[self.source_mask[postsynaptic_cell]])
+        self._weights.append(w)
+        
+        return t+self.interval
+    
     def get_weights(self):
-        signal = neo.AnalogSignal(self._weights, units='nA', sampling_period=self.interval * ms, name="weight")
+        final_weights = []
+        for t in self._weights:
+            t_w = []
+            for w in t:
+                t_w += list(w[w > 0.5])
+            final_weights.append(t_w)
+
+        signal = neo.AnalogSignal(final_weights, units='nA', sampling_period=self.interval * ms,
+                                  name="weight")
         signal.channel_index = neo.ChannelIndex(np.arange(len(self._weights[0])))
         return signal
+
 
 class visualiseTime(object):
     def __init__(self, sampling_interval):
@@ -259,12 +335,15 @@ class visualiseTime(object):
         return t + self.interval
 
 
-visualise_time = visualiseTime(sampling_interval=10.0)
-weightRuleInput2reaction = WeightRecorder(sampling_interval=1.0, proj=input2reaction)
+visualise_time = visualiseTime(sampling_interval=100.0)
+
+spikesReaction = LastSpikeRecorder(sampling_interval=1.0, pop=Reaction)
+weightRuleInput2reaction = dynamicWeightAdaptation(sampling_interval=1.0, projection=input2reaction)
+callbacks = [spikesReaction, weightRuleInput2reaction, visualise_time]
 
 print("\nStart simulation ...")
 start = d.now()
-sim.run(time_data, callbacks=[visualise_time,weightRuleInput2reaction])
+sim.run(time_data, callbacks=callbacks)
 print("Simulation done in", d.now() - start ,"\n")
 
 
@@ -272,6 +351,7 @@ print("Simulation done in", d.now() - start ,"\n")
 
 Input_data = Input.get_data().segments[0]
 Reaction_data = Reaction.get_data().segments[0]
+Reaction_spikes = spikesReaction.get_spikes()
 weights = weightRuleInput2reaction.get_weights()
 
 figure_filename = normalized_filename("Results", "Saliency detection", "png", options.simulator)
@@ -282,10 +362,10 @@ if options.plot_figure :
         # raster plot of the event inputs spike times
         Panel(Input_data.spiketrains, xlabel="Input spikes", yticks=True, markersize=0.2, xlim=(0, time_data), ylim=(0, Input.size)),
         # raster plot of the Reaction neurons spike times
-        Panel(Reaction_data.spiketrains, xlabel="ROI detector spikes", yticks=True, markersize=0.2, xlim=(0, time_data), ylim=(0, Reaction.size)),
+        Panel(Reaction_spikes, xlabel="ROI detector spikes", yticks=True, markersize=0.2, xlim=(0, time_data), ylim=(0, Reaction.size)),
 
         # # membrane potential of the Reaction neurons
-        Panel(Reaction_data.filter(name='v')[0], ylabel="Membrane potential (mV)\nROI detector layer", yticks=True, xlim=(0, time_data), linewidth=0.2, legend=False),
+        # Panel(Reaction_data.filter(name='v')[0], ylabel="Membrane potential (mV)\nROI detector layer", yticks=True, xlim=(0, time_data), linewidth=0.2, legend=False),
         # evolution of the synaptic weights with time
         Panel(weights, xticks=True, yticks=True, xlabel="Time (ms)", ylabel="Intermediate Output Weight",
                 legend=False, xlim=(0, time_data)),
