@@ -1,0 +1,5 @@
+python3 AutomaticOneOutput.py -da /home/amelie/Scripts/Data/DVS128Gesture/PLIF_classifier_data/control_combinations_duo_shift10_20230124-172244/ -m eventcount --plot-figure -t 1e2
+python3 AutomaticOneOutput.py -da /home/amelie/Scripts/Data/DVS128Gesture/PLIF_classifier_data/control_combinations_duo_shift50_20230124-172339/ -m eventcount --plot-figure -t 1e2
+python3 AutomaticOneOutput.py -da /home/amelie/Scripts/Data/DVS128Gesture/PLIF_classifier_data/control_combinations_duo_shift500_20230124-172625/ -m eventcount --plot-figure -t 1e2
+python3 AutomaticOneOutput.py -da /home/amelie/Scripts/Data/DVS128Gesture/PLIF_classifier_data/control_combinations_duo_shift1000_20230124-173007/ -m eventcount --plot-figure -t 1e2
+python3 AutomaticOneOutput.py -da /home/amelie/Scripts/Data/DVS128Gesture/PLIF_classifier_data/control_combinations_duo_shift5000_20230124-173150/ -m eventcount --plot-figure -t 1e2
