@@ -1,7 +1,7 @@
 # Stakes of Neuromorphic Foveation
-This is the code for the paper **Stakes of Neuromorphic Foveation: a promising future for embedded event cameras** by Amelie Gruel, Dalia Hareb, [Antoine Grimaldi][https://laurentperrinet.github.io/author/antoine-grimaldi/], [Jean Martinet][https://niouze.i3s.unice.fr/jmartinet/en/home/], [Laurent Perrinet][https://laurentperrinet.github.io] [Bernabe Linares-Barranco][http://www2.imse-cnm.csic.es/~bernabe/] and [Teresa Serrano-Gotarredona][http://www2.imse-cnm.csic.es/~terese/]
+This is the code for the paper **Stakes of Neuromorphic Foveation: a promising future for embedded event cameras** by Amelie Gruel, Dalia Hareb, [Antoine Grimaldi](https://laurentperrinet.github.io/author/antoine-grimaldi/), [Jean Martinet](https://niouze.i3s.unice.fr/jmartinet/en/home/), [Laurent Perrinet](https://laurentperrinet.github.io), [Bernabe Linares-Barranco](http://www2.imse-cnm.csic.es/~bernabe/) and [Teresa Serrano-Gotarredona](http://www2.imse-cnm.csic.es/~terese/)
 
-You can find the pdf of the paper [here][https://www.researchsquare.com/article/rs-2120721/v1]. If you use any of this code, please cite the following publication:
+You can find the pdf of the paper [here](https://www.researchsquare.com/article/rs-2120721/v1). If you use any of this code, please cite the following publication:
 
 
 [TOC]
@@ -21,4 +21,4 @@ foveation to the input event data:
 
 
 ## See also
-Workshop paper from which is extended the extended article: **Neuromorphic foveation applied to semantic segmentation** by Amelie Gruel, Dalia Hareb, [Jean Martinet][https://niouze.i3s.unice.fr/jmartinet/en/home/], [Bernabe Linares-Barranco][http://www2.imse-cnm.csic.es/~bernabe/] and [Teresa Serrano-Gotarredona][http://www2.imse-cnm.csic.es/~terese/] [pdf][https://drive.google.com/file/d/1-r9l4bmoaJe2RIvn30GPa15-yUyXXwp8/view]
+Workshop paper from which is extended the extended article: **Neuromorphic foveation applied to semantic segmentation** by Amelie Gruel, Dalia Hareb, [Jean Martinet](https://niouze.i3s.unice.fr/jmartinet/en/home/), [Bernabe Linares-Barranco](http://www2.imse-cnm.csic.es/~bernabe/) and [Teresa Serrano-Gotarredona](http://www2.imse-cnm.csic.es/~terese/])([pdf](https://drive.google.com/file/d/1-r9l4bmoaJe2RIvn30GPa15-yUyXXwp8/view)).
