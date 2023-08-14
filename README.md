@@ -3,8 +3,16 @@ This is the code for the paper **Stakes of Neuromorphic Foveation: a promising f
 
 You can find the pdf of the paper [here](https://www.researchsquare.com/article/rs-2120721/v1). If you use any of this code, please cite the following publication:
 
-
-[TOC]
+```bibtex
+@Article{Gruel2022,
+  author        = {Amélie Gruel and Dalia Hareb and Antoine Grimaldi and Jean Martinet and Laurent Perrinet and Bernabe Linares-Barranco and Teresa Serrano-Gotarredona},
+  title         = {Stakes of Neuromorphic Foveation: a promising future for embedded event cameras},
+  journal       = {Biological Cybernetics},
+  url           = {https://doi.org/10.21203/rs.3.rs-2120721/v1},
+  year          = 2022,
+  note          = {Submitted for the special issue "What can Computer Vision learn from Visual Neuroscience?". Currently under revision. PREPRINT (Version 1) available at Research Square}
+}
+```
 
 ## Summary of the work
 
