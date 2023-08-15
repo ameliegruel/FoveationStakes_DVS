@@ -32,30 +32,54 @@ We present below the main steps of the methodology used in this work to demonstr
 
 ### Install
 
+!! TO UPDATE !!
+
 ### Run
 
 #### Reduce event data
 
+```bash
+python AutomaticReducedData.py \
+  --dataset /path/to/dataset/directory/ \
+  --divider ρ_value \
+  --method downscaling_method
+```
+The default value of the dividing factor ρ is 4. The downscaling method is to be chosen from the set ['funelling', 'eventcount', 'cubic', 'linear'] (see the last section for more details on the different methods available).
+
 #### Get RoI coordinates
 
 ```bash
-python run_reconstruction.py \
-  -c pretrained/E2VID_lightweight.pth.tar \
-  -i data/dynamic_6dof.zip \
-  --auto_hdr \
-  --display \
-  --show_events
+python AutomaticROIData.py \
+  --dataset /path/to/dataset/directory/ \
+  --divider ρ_value \
+  --method downscaling_method
 ```
+!! TO UPDATE !!
 
 #### Create “only RoIs” dataset
 
+!! TO UPDATE !!
+
 #### Create “foveated” dataset
 
-### Example datasets 
+!! TO UPDATE !!
 
-## See also
-Workshop paper from which is extended the extended article: **Neuromorphic foveation applied to semantic segmentation** by Amelie Gruel, Dalia Hareb, [Jean Martinet](https://niouze.i3s.unice.fr/jmartinet/en/home/), [Bernabe Linares-Barranco](http://www2.imse-cnm.csic.es/~bernabe/) and [Teresa Serrano-Gotarredona](http://www2.imse-cnm.csic.es/~terese/])([pdf](https://drive.google.com/file/d/1-r9l4bmoaJe2RIvn30GPa15-yUyXXwp8/view)).
+### Datasets 
+
+The results provided in the paper were obtained while assessing the neuromorphic foveation on two benchmark event-based datasets: 
+- DVS 128 Gesture ([dataset](https://research.ibm.com/interactive/dvsgesture/), [CVPR 2017 paper](https://openaccess.thecvf.com/content_cvpr_2017/papers/Amir_A_Low_Power_CVPR_2017_paper.pdf)) 
+- DAVIS Driving Dataset 17 ([code and dataset](https://docs.google.com/document/d/1HM0CSmjO8nOpUeTvmPjopcBcVCk7KXvLUuiZFS6TWSg/pub), [ICML 2017 paper](https://arxiv.org/abs/1711.01458)).
+
+### Computer vision tasks
+
+- Classification: accuracy evaluated using the [HOTS model](https://laurentperrinet.github.io/publication/grimaldi-21-cosyne/)
+- Semantic segmentation: accuracy and MIoU evaluated using the [Ev-SegNet model](https://arxiv.org/abs/1811.12039). It is to be noted that the Ev-SegNet model uses as input the DDD17 event data with a specific representation: the data comprises six channels corresponding to the count, mean and standard deviation of the normalised timestamps of events happening at each pixel within an interval of 50ms for the positive and negative polarities. Dalia Hareb identified the data used to train the model in the original dataset (4 channels - <x,y,p,t>) and reconstructed this data in the format taken into account by Ev-SegNet (6 channels). 
 
 ## Acknowledgements
 
-This work was supported by the European Union’s ERA-NET CHIST-ERA2018 research and innovation programme under grant agreement ANR-19-CHR3-0008. The authors are grateful to the OPAL infrastructure from Universit ́e Cˆote d’Azur for providing resources and support.
+This work was supported by the European Union’s ERA-NET CHIST-ERA2018 research and innovation programme under grant agreement ANR-19-CHR3-0008. The authors are grateful to the OPAL infrastructure from Université Côte d’Azur for providing resources and support.
+
+## See also
+Workshop paper from which is extended the extended article: **Neuromorphic foveation applied to semantic segmentation** by Amelie Gruel, Dalia Hareb, [Jean Martinet](https://niouze.i3s.unice.fr/jmartinet/en/home/), [Bernabe Linares-Barranco](http://www2.imse-cnm.csic.es/~bernabe/) and [Teresa Serrano-Gotarredona](http://www2.imse-cnm.csic.es/~terese/]) ([pdf](https://drive.google.com/file/d/1-r9l4bmoaJe2RIvn30GPa15-yUyXXwp8/view))
+
+Complete description of the four spatial downscaling methods in the VISAPP 2021 article: **Event data downscaling for embedded computer vision** by Amelie Gruel, [Jean Martinet](https://niouze.i3s.unice.fr/jmartinet/en/home/), [Teresa Serrano-Gotarredona](http://www2.imse-cnm.csic.es/~terese/]) and [Bernabe Linares-Barranco](http://www2.imse-cnm.csic.es/~bernabe/) ([pdf](https://cnrs.hal.science/hal-03814075/))
