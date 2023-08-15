@@ -21,17 +21,35 @@ Abstract of the extended article in Biological Cybernetics (*currently under rev
 
 ### Main steps of the methodology 
 
-We present below the main steps of the methodology used in this work to apply neuromorphic
-foveation to the input event data: 
-- the classification or semantic segmentation performance is first measured on the original dataset, at high resolution;
-- the event data is then spatially downscaled by a dividing factor ρ = 4 before being given as input to the saliency detection model. Each downscaling method described in the previous section is used to produce 4 different sets of event data, on which the saliency is detected separately.
+We present below the main steps of the methodology used in this work to demonstrate the stakes of neuromorphic foveation: 
+- the event data is spatially downscaled by a dividing factor ρ = 4 before being given as input to the saliency detection model. Each downscaling method described in the previous section is used to produce 4 different sets of event data, on which the saliency is detected separately.
 - according to the saliency detected on those 4 “reduced” sets, 8 new sets of event data are created:
+  - 4 “only RoIs” sets containing only event data from the high-resolution dataset in the regions detected as salient in the respective “reduced” set;
+  – 4 “foveated” sets reconstructed using the binary foveation process described above.
+- finally, the classification or semantic segmentation performance is measured on the 12 newly created sets of event data (“reduced”, “only RoIs” and “foveated”) as well as on the original dataset.
 
 ## Execution
 
 ### Install
 
 ### Run
+
+#### Reduce event data
+
+#### Get RoI coordinates
+
+```bash
+python run_reconstruction.py \
+  -c pretrained/E2VID_lightweight.pth.tar \
+  -i data/dynamic_6dof.zip \
+  --auto_hdr \
+  --display \
+  --show_events
+```
+
+#### Create “only RoIs” dataset
+
+#### Create “foveated” dataset
 
 ### Example datasets 
 
