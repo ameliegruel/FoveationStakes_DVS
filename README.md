@@ -35,6 +35,7 @@ We present below the main steps of the methodology used in this work to demonstr
 !! TO UPDATE !!
 
 ### Run
+Scripts `Automatic[...].py` browse the entirety of the event data in an input directory and apply the corresponding process (downscaling, foveation, saliency detection, etc). 
 
 #### Reduce event data
 
@@ -44,7 +45,7 @@ python AutomaticReducedData.py \
   --divider ρ_value \
   --method downscaling_method
 ```
-The default value of the dividing factor ρ is 4. The downscaling method is to be chosen from the set ['funelling', 'eventcount', 'cubic', 'linear'] (see the last section for more details on the different methods available).
+The default value of the dividing factor ρ is 4. The downscaling method is to be chosen from the set ['funelling', 'eventcount', 'cubic', 'linear'] and is imported from the script `reduceEvents.py` (see the last section for more details on the different methods available).
 
 #### Get RoI coordinates
 
@@ -54,15 +55,21 @@ python AutomaticROIData.py \
   --divider ρ_value \
   --method downscaling_method
 ```
-!! TO UPDATE !!
+The divider and method arguments allow to reconstruct the path where to grab the downscaled data. If the method is "none", this means that the RoIs are detected on the original dataset, at high resolution. Since the neuromorphic foveation is to be constructed from low-resolution events whose resolution is to be sharpened in the salient regions, this option is not used in this work.
 
-#### Create “only RoIs” dataset
-
-!! TO UPDATE !!
+The RoIs coordinates are saved as positive events, which <x,y,t> channels provide the spatiotemporal locations of RoIs in the input data. 
 
 #### Create “foveated” dataset
 
-!! TO UPDATE !!
+```bash
+python AutomaticFoveatedData.py \
+  --dataset /path/to/dataset/directory/ \
+  --divider ρ_value \
+  --method downscaling_method \
+  --ROI /path/to/ROI/coordinates/directory/
+```
+
+The data is foveated according to a binary mask, thanks to the function `getPuzzle()` imported from the script `getFoveatedData.py`.
 
 ### Datasets 
 
