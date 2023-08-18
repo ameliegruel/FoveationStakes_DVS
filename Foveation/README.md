@@ -35,7 +35,7 @@ We present below the main steps of the methodology used in this work to demonstr
 !! TO UPDATE !!
 
 ### Run
-Scripts `Automatic[...].py` browse the entirety of the event data in an input directory and apply the corresponding process (downscaling, foveation, saliency detection, etc). 
+Scripts `BinaryFoveation/Automatic[...].py` browse the entirety of the event data in an input directory and apply the corresponding process (downscaling, foveation, saliency detection, etc). 
 
 #### Reduce event data
 
