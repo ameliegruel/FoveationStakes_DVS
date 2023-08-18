@@ -10,6 +10,8 @@ The repertory ```VisualAttention``` includes the work on neuromorphic visual att
 
 You can find the corresponding README [here](VisualAttention/README.md).
 
+## Foveation
+
 The repertory ```Foveation``` includes the work on neuromorphic foveation introduced in the paper:
 - **Stakes of Neuromorphic Foveation: a promising future for embedded event cameras** by Amelie Gruel, Dalia Hareb, [Antoine Grimaldi](https://laurentperrinet.github.io/author/antoine-grimaldi/), [Jean Martinet](https://niouze.i3s.unice.fr/jmartinet/en/home/), [Laurent Perrinet](https://laurentperrinet.github.io), [Bernabe Linares-Barranco](http://www2.imse-cnm.csic.es/~bernabe/) and [Teresa Serrano-Gotarredona](http://www2.imse-cnm.csic.es/~terese/) (Biological Cybernetics 2022 - [pdf](https://www.researchsquare.com/article/rs-2120721/v1)).
 
