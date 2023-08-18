@@ -4,11 +4,12 @@ This GitHub repertory contains both work on neuromorphic visual attention and fo
 
 The repertory ```VisualAttention``` includes the work on neuromorphic visual attention introduced in the following articles: 
 - **Neuromorphic Event-Based Spatio-temporal Attention using Adaptive Mechanisms** by Amélie Gruel, Antonio Vitale, [Jean Martinet](https://niouze.i3s.unice.fr/jmartinet/en/home/) and [Michele Magno](https://ee.ethz.ch/the-department/people-a-z/person-detail.michele-magno.html) (AICAS 2022 - [pdf](https://ieeexplore.ieee.org/document/9869977))
-- **Simultaneous Neuromorphic Selection of Multiple Salient Objects for Event Vision** by Amélie Gruel, [Jean Martinet](https://niouze.i3s.unice.fr/jmartinet/en/home/) and [Michele Magno](https://ee.ethz.ch/the-department/people-a-z/person-detail.michele-magno.html) (IJCNN 2023 - )
-You can find the corresonding README [here](VisualAttention/README.md).
+- **Simultaneous Neuromorphic Selection of Multiple Salient Objects for Event Vision** by Amélie Gruel, [Jean Martinet](https://niouze.i3s.unice.fr/jmartinet/en/home/) and [Michele Magno](https://ee.ethz.ch/the-department/people-a-z/person-detail.michele-magno.html) (IJCNN 2023)
 
-The repertory ```Foveation``` includes the work on neuromorphic foveation introduced in the paper **Stakes of Neuromorphic Foveation: a promising future for embedded event cameras** by Amelie Gruel, Dalia Hareb, [Antoine Grimaldi](https://laurentperrinet.github.io/author/antoine-grimaldi/), [Jean Martinet](https://niouze.i3s.unice.fr/jmartinet/en/home/), [Laurent Perrinet](https://laurentperrinet.github.io), [Bernabe Linares-Barranco](http://www2.imse-cnm.csic.es/~bernabe/) and [Teresa Serrano-Gotarredona](http://www2.imse-cnm.csic.es/~terese/) (Biological Cybernetics 2022 - [pdf](https://www.researchsquare.com/article/rs-2120721/v1))
-You can find the corresonding README [here](Foveation/README.md).
+You can find the corresponding README [here](VisualAttention/README.md).
+
+The repertory ```Foveation``` includes the work on neuromorphic foveation introduced in the paper **Stakes of Neuromorphic Foveation: a promising future for embedded event cameras** by Amelie Gruel, Dalia Hareb, [Antoine Grimaldi](https://laurentperrinet.github.io/author/antoine-grimaldi/), [Jean Martinet](https://niouze.i3s.unice.fr/jmartinet/en/home/), [Laurent Perrinet](https://laurentperrinet.github.io), [Bernabe Linares-Barranco](http://www2.imse-cnm.csic.es/~bernabe/) and [Teresa Serrano-Gotarredona](http://www2.imse-cnm.csic.es/~terese/) (Biological Cybernetics 2022 - [pdf](https://www.researchsquare.com/article/rs-2120721/v1)).
+You can find the corresponding README [here](Foveation/README.md).
 
 If you use any of this code, please cite the following publications:
 ```bibtex
