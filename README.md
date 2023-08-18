@@ -19,16 +19,16 @@ You can find the corresponding README [here](Foveation/README.md).
 
 If you use any of this code, please cite the following publications:
 ```bibtex
-@inproceedings{Gruel_AICAS_2022,
+@Article{Gruel_AICAS_2022,
 	author = {Gruel, Amélie and Vitale, Antonio and Martinet, Jean and Magno, Michele},
-	booktitle = {IEEE International Conference on Artificial Intelligence Circuits and Systems (AICAS)},
+	journal = {IEEE International Conference on Artificial Intelligence Circuits and Systems (AICAS)},
 	title = {Neuromorphic Event-Based Spatio-temporal Attention using Adaptive Mechanisms},
 	year = {2022}
 }
 ```
 
 ```bibtex
-@article{Gruel_IJCNN_2023,
+@Article{Gruel_IJCNN_2023,
   title={Simultaneous neuromorphic selection of multiple salient objects for event vision},
   author={Gruel, Amélie and Martinet, Jean and Magno, Michele},
   journal={2023 International Joint Conference on Neural Networks (IJCNN)},
@@ -43,7 +43,7 @@ If you use any of this code, please cite the following publications:
   journal       = {Biological Cybernetics},
   url           = {https://doi.org/10.21203/rs.3.rs-2120721/v1},
   year          = 2022,
-  note          = {Submitted for the special issue "What can Computer Vision learn from Visual Neuroscience?". Currently under revision. PREPRINT (Version 1) available at Research Square}
+  note          = {Submitted for the special issue "What can Computer Vision learn from Visual Neuroscience?". PREPRINT (Version 1) available at Research Square}
 }
 ```
 
